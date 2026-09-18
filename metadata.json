@@ -1,7 +1,8 @@
 {
-  "name": "Engineering Odyssey",
+  "name": "Carl Elie's Odyssey Portfolio",
   "description": "Poste de pilotage spatial interactif et cartographie orbitale 3D pour l'exploration de projets d'ingénierie logicielle.",
   "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }
-
