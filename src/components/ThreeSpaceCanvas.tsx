@@ -178,7 +178,9 @@ export const ThreeSpaceCanvas: React.FC<ThreeSpaceCanvasProps> = ({
       key: 'sun',
       target: CELESTIAL_TARGETS.sun,
     };
-    clickableObjects.push(sunMesh);
+    corona1.userData = sunMesh.userData;
+    corona2.userData = sunMesh.userData;
+    clickableObjects.push(sunMesh, corona1, corona2);
 
     // ==========================================
     // 2. PLANÈTE NEXT.JS (3.48 AU)
@@ -227,7 +229,9 @@ export const ThreeSpaceCanvas: React.FC<ThreeSpaceCanvasProps> = ({
       key: 'nextjs',
       target: CELESTIAL_TARGETS.nextjs,
     };
-    clickableObjects.push(nextMesh);
+    nextAtmo.userData = nextMesh.userData;
+    nextRing.userData = nextMesh.userData;
+    clickableObjects.push(nextMesh, nextAtmo, nextRing);
 
     // ==========================================
     // 3. CEINTURE D'ASTÉROÏDES (5.82 AU)
@@ -285,8 +289,14 @@ export const ThreeSpaceCanvas: React.FC<ThreeSpaceCanvasProps> = ({
             subtitle: `Stars: ${item.stars} • Astéroïde Clé d'Odyssée`,
           },
         };
-        clickableObjects.push(rock);
+      } else {
+        rock.userData = {
+          id: 'asteroids',
+          key: 'asteroids',
+          target: CELESTIAL_TARGETS.asteroids,
+        };
       }
+      clickableObjects.push(rock);
     }
     scene.add(asteroidBeltGroup);
 
@@ -297,6 +307,12 @@ export const ThreeSpaceCanvas: React.FC<ThreeSpaceCanvasProps> = ({
     const stationGroup = new THREE.Group();
     stationGroup.position.set(-100, 14, 100); // R ~ 142
 
+    const stationData = {
+      id: 'station',
+      key: 'station',
+      target: CELESTIAL_TARGETS.station,
+    };
+
     // Hub Central
     const hubGeo = new THREE.CylinderGeometry(4, 4, 16, 16);
     const hubMat = new THREE.MeshStandardMaterial({
@@ -305,6 +321,7 @@ export const ThreeSpaceCanvas: React.FC<ThreeSpaceCanvasProps> = ({
       roughness: 0.25,
     });
     const hubMesh = new THREE.Mesh(hubGeo, hubMat);
+    hubMesh.userData = stationData;
     stationGroup.add(hubMesh);
 
     // Double Solar Array
@@ -317,10 +334,12 @@ export const ThreeSpaceCanvas: React.FC<ThreeSpaceCanvasProps> = ({
     const pGeo = new THREE.BoxGeometry(26, 0.35, 4.5);
     const panelTop = new THREE.Mesh(pGeo, solarMat);
     panelTop.position.set(0, 4.5, 0);
+    panelTop.userData = stationData;
     stationGroup.add(panelTop);
 
     const panelBottom = new THREE.Mesh(pGeo, solarMat);
     panelBottom.position.set(0, -4.5, 0);
+    panelBottom.userData = stationData;
     stationGroup.add(panelBottom);
 
     // Kubernetes Wireframe Ring
@@ -328,7 +347,10 @@ export const ThreeSpaceCanvas: React.FC<ThreeSpaceCanvasProps> = ({
     const k8sRingMat = new THREE.MeshBasicMaterial({ color: 0x10b981, wireframe: true });
     const k8sRing = new THREE.Mesh(k8sRingGeo, k8sRingMat);
     k8sRing.rotation.x = Math.PI / 2;
+    k8sRing.userData = stationData;
     stationGroup.add(k8sRing);
+
+    clickableObjects.push(hubMesh, panelTop, panelBottom, k8sRing);
 
     // 3 Pulsing Modules (Docker, AWS, Google Cloud)
     const cloudModules = [
@@ -561,6 +583,7 @@ export const ThreeSpaceCanvas: React.FC<ThreeSpaceCanvasProps> = ({
     // Animation Loop
     const clock = new THREE.Clock();
     let animId: number;
+    let lastHoveredKey: string | null = null;
 
     const animate = () => {
       animId = requestAnimationFrame(animate);
@@ -604,11 +627,18 @@ export const ThreeSpaceCanvas: React.FC<ThreeSpaceCanvasProps> = ({
         while (top && !top.userData?.id && top.parent) top = top.parent;
         if (top && top.userData?.target) {
           container.style.cursor = 'pointer';
-          onHoverTargetRef.current(top.userData.target);
+          const targetKey = (top.userData.target.name || top.userData.id) as string;
+          if (lastHoveredKey !== targetKey) {
+            lastHoveredKey = targetKey;
+            onHoverTargetRef.current(top.userData.target);
+          }
         }
       } else {
         container.style.cursor = 'default';
-        onHoverTargetRef.current(null);
+        if (lastHoveredKey !== null) {
+          lastHoveredKey = null;
+          onHoverTargetRef.current(null);
+        }
       }
 
       renderer.render(scene, camera);

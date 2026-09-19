@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { WaypointKey, CelestialTarget, OpenSourceProject, ClusterLog, CelestialType, OfficerUser } from './types';
 import { CELESTIAL_TARGETS, INITIAL_OPEN_SOURCE_PROJECTS, INITIAL_CLUSTER_LOGS } from './data/spaceData';
 import { spaceSynth } from './utils/audioSynth';
@@ -8,8 +8,18 @@ import { CockpitHeader } from './components/CockpitHeader';
 import { CockpitHudOverlay } from './components/CockpitHudOverlay';
 import { CockpitModals } from './components/CockpitModals';
 import { CockpitFooter } from './components/CockpitFooter';
+import { CockpitLoadingScreen } from './components/CockpitLoadingScreen';
 
 export default function App() {
+  // Loading screen state
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  // Sidebar hidden in a button for large screens
+  const [sidebarOpen, setSidebarOpen] = useState<boolean>(false);
+  // Target card popup visible on hover over solar system elements or on selection
+  const [showTargetPopup, setShowTargetPopup] = useState<boolean>(false);
+  const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isOverReticleCardRef = useRef<boolean>(false);
+
   // Start in wide-angle, de-zoomed overview
   const [activeWaypoint, setActiveWaypoint] = useState<WaypointKey>('reset');
   const [targetInfo, setTargetInfo] = useState<CelestialTarget>({
@@ -65,7 +75,10 @@ export default function App() {
     const timer = setTimeout(() => {
       setShowTouchHint(false);
     }, 6000);
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+    };
   }, []);
 
   // Handle officer authentication
@@ -96,6 +109,7 @@ export default function App() {
     setActiveWaypoint(key);
 
     if (key === 'reset') {
+      setShowTargetPopup(false);
       setTargetInfo({
         id: 'reset',
         name: 'Système Solaire Odyssée • Vue Globale',
@@ -110,6 +124,7 @@ export default function App() {
       setCoords({ x: 0.0, y: 30.0, z: 160.0 });
       setDistAU(8.89);
     } else {
+      setShowTargetPopup(true);
       const target = CELESTIAL_TARGETS[key];
       if (target) {
         setTargetInfo(target);
@@ -134,26 +149,35 @@ export default function App() {
     }
   }, []);
 
-  // Inspect current target
+  // Inspect current target (uses hovered target modal or active waypoint modal)
   const handleInspectTarget = useCallback(() => {
-    if (activeWaypoint !== 'reset' && CELESTIAL_TARGETS[activeWaypoint]) {
+    if (targetInfo?.modalId) {
+      setActiveModal(targetInfo.modalId);
+    } else if (activeWaypoint !== 'reset' && CELESTIAL_TARGETS[activeWaypoint]) {
       setActiveModal(CELESTIAL_TARGETS[activeWaypoint].modalId || 'modal-sun');
     } else {
       setActiveModal('modal-nextjs');
     }
-  }, [activeWaypoint]);
+  }, [activeWaypoint, targetInfo]);
 
-  // Hover target update from Three.js
+  // Hover target update from Three.js - shows popup on hover over solar system elements
   const handleHoverTarget = useCallback((target: CelestialTarget | null) => {
     if (target) {
-      setTargetInfo((prev) => ({
-        ...prev,
-        name: target.name,
-        subtitle: target.subtitle,
-        category: target.category || prev.category,
-        meta: target.meta || prev.meta,
-        icon: target.icon || prev.icon,
-      }));
+      if (hoverTimeoutRef.current) {
+        clearTimeout(hoverTimeoutRef.current);
+        hoverTimeoutRef.current = null;
+      }
+      setTargetInfo(target);
+      setShowTargetPopup(true);
+    } else {
+      if (hoverTimeoutRef.current) {
+        clearTimeout(hoverTimeoutRef.current);
+      }
+      hoverTimeoutRef.current = setTimeout(() => {
+        if (!isOverReticleCardRef.current) {
+          setShowTargetPopup(false);
+        }
+      }, 450);
     }
   }, []);
 
@@ -221,16 +245,25 @@ export default function App() {
 
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-[#10131c] text-[#e1e2ee] font-body select-none">
-      {/* 1. Left Cockpit Navigation Sidebar (Hidden on Tablet & Mobile) */}
+      {/* 0. Cockpit Boot & Loading Sequence */}
+      {isLoading && (
+        <CockpitLoadingScreen onComplete={() => setIsLoading(false)} />
+      )}
+
+      {/* 1. Left Cockpit Navigation Sidebar (Hidden on Tablet & Mobile, toggleable drawer on Desktop) */}
       <CockpitSidebar
         activeWaypoint={activeWaypoint}
-        onNavigate={handleNavigate}
+        onNavigate={(key) => {
+          handleNavigate(key);
+        }}
         coreIntegrity={coreIntegrity}
         warpHarmonic={warpHarmonic}
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
       />
 
-      {/* Main Cockpit Area (On tablet/mobile: 100% full screen, no pl-64 offset) */}
-      <div className="w-full h-full relative flex flex-col lg:pl-64">
+      {/* Main Cockpit Area (100% full screen, no fixed offset) */}
+      <div className="w-full h-full relative flex flex-col">
         {/* 2. Top Cockpit Telemetry Header (Hidden on Tablet & Mobile) */}
         <CockpitHeader
           coordX={coords.x}
@@ -240,6 +273,8 @@ export default function App() {
           audioActive={audioActive}
           isAuthenticated={isAuthenticated}
           officerUser={officerUser}
+          sidebarOpen={sidebarOpen}
+          onToggleSidebar={() => setSidebarOpen((prev) => !prev)}
           onToggleAudio={handleToggleAudio}
           onOpenNewProject={() => setActiveModal('modal-add-project')}
           onOpenProfile={() => {
@@ -249,8 +284,8 @@ export default function App() {
           onOpenAuth={() => setActiveModal('modal-auth')}
         />
 
-        {/* 3. Main 3D Space Viewport & HUD (On tablet/mobile: 0 padding, full cinematic viewport) */}
-        <main className="relative w-full h-full overflow-hidden bg-[#04060d] pt-0 pb-0 lg:pt-16 lg:pb-16">
+        {/* 3. Main 3D Space Viewport & HUD */}
+        <main className="relative w-full h-full overflow-hidden bg-[#04060d]">
           {/* 3D Three.js Scene */}
           <ThreeSpaceCanvas
             activeWaypoint={activeWaypoint}
@@ -269,6 +304,7 @@ export default function App() {
           <CockpitHudOverlay
             activeWaypoint={activeWaypoint}
             targetInfo={targetInfo}
+            showTargetPopup={showTargetPopup}
             coordX={coords.x}
             coordY={coords.y}
             coordZ={coords.z}
@@ -278,6 +314,18 @@ export default function App() {
             audioActive={audioActive}
             onNavigate={handleNavigate}
             onInspectTarget={handleInspectTarget}
+            onCloseTargetPopup={() => setShowTargetPopup(false)}
+            onCardMouseEnter={() => {
+              isOverReticleCardRef.current = true;
+              if (hoverTimeoutRef.current) {
+                clearTimeout(hoverTimeoutRef.current);
+                hoverTimeoutRef.current = null;
+              }
+            }}
+            onCardMouseLeave={() => {
+              isOverReticleCardRef.current = false;
+              setShowTargetPopup(false);
+            }}
             onToggleFreecam={handleToggleFreecam}
             onToggleAudio={handleToggleAudio}
           />

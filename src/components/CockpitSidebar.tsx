@@ -6,6 +6,8 @@ interface CockpitSidebarProps {
   onNavigate: (key: WaypointKey) => void;
   coreIntegrity: number;
   warpHarmonic: string;
+  isOpen: boolean;
+  onClose: () => void;
 }
 
 export const CockpitSidebar: React.FC<CockpitSidebarProps> = ({
@@ -13,6 +15,8 @@ export const CockpitSidebar: React.FC<CockpitSidebarProps> = ({
   onNavigate,
   coreIntegrity,
   warpHarmonic,
+  isOpen,
+  onClose,
 }) => {
   const navItems = [
     {
@@ -48,15 +52,41 @@ export const CockpitSidebar: React.FC<CockpitSidebarProps> = ({
   ];
 
   return (
-    <aside className="hidden lg:flex fixed left-0 top-0 h-full w-64 bg-[#0b0e16]/90 backdrop-blur-xl z-50 flex-col justify-between p-4 border-r border-[#3a494b]/30 select-none shadow-[2px_0_16px_rgba(0,0,0,0.5)]">
-      <div className="flex flex-col gap-6">
-        {/* Logo and system status */}
-        <div className="flex items-center gap-2 px-1">
-          <div className="w-2.5 h-2.5 rounded-full bg-[#00f2fe] animate-pulse shadow-[0_0_8px_#00f2fe]" />
-          <span className="font-mono text-sm font-semibold tracking-widest text-[#e0fdff] uppercase">
-            Odyssey // Core
-          </span>
-        </div>
+    <>
+      {/* Optional subtle backdrop on desktop when drawer is open */}
+      {isOpen && (
+        <div
+          onClick={onClose}
+          className="hidden lg:block fixed inset-0 bg-black/40 backdrop-blur-[2px] z-40 transition-opacity animate-in fade-in"
+          title="Cliquer pour refermer la console"
+        />
+      )}
+
+      <aside
+        className={`hidden lg:flex fixed left-0 top-0 h-full w-64 bg-[#0b0e16]/95 backdrop-blur-2xl z-50 flex-col justify-between p-4 border-r border-[#3a494b]/40 select-none shadow-[4px_0_24px_rgba(0,0,0,0.7)] transition-all duration-300 ease-in-out ${
+          isOpen ? 'translate-x-0 opacity-100 pointer-events-auto' : '-translate-x-full opacity-0 pointer-events-none'
+        }`}
+      >
+        <div className="flex flex-col gap-6">
+          {/* Logo, system status and close button */}
+          <div className="flex items-center justify-between px-1">
+            <div className="flex items-center gap-2">
+              <div className="w-2.5 h-2.5 rounded-full bg-[#00f2fe] animate-pulse shadow-[0_0_8px_#00f2fe]" />
+              <span className="font-mono text-sm font-semibold tracking-widest text-[#e0fdff] uppercase">
+                Odyssey // Core
+              </span>
+            </div>
+
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-7 h-7 rounded-lg hover:bg-[#272a33] text-[#849495] hover:text-[#fff] flex items-center justify-center transition-colors cursor-pointer"
+              title="Réduire la console de bord"
+              aria-label="Fermer la console"
+            >
+              <span className="material-symbols-outlined text-[18px]">chevron_left</span>
+            </button>
+          </div>
 
         {/* Waypoints Navigation list */}
         <div className="flex flex-col gap-1.5">
@@ -127,5 +157,6 @@ export const CockpitSidebar: React.FC<CockpitSidebarProps> = ({
         </div>
       </div>
     </aside>
+  </>
   );
 };

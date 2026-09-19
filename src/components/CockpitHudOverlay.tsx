@@ -4,6 +4,7 @@ import { WaypointKey, CelestialTarget } from '../types';
 interface CockpitHudOverlayProps {
   activeWaypoint: WaypointKey;
   targetInfo: CelestialTarget;
+  showTargetPopup: boolean;
   coordX: number;
   coordY: number;
   coordZ: number;
@@ -13,6 +14,9 @@ interface CockpitHudOverlayProps {
   audioActive: boolean;
   onNavigate: (key: WaypointKey) => void;
   onInspectTarget: () => void;
+  onCloseTargetPopup: () => void;
+  onCardMouseEnter?: () => void;
+  onCardMouseLeave?: () => void;
   onToggleFreecam: () => void;
   onToggleAudio: () => void;
 }
@@ -20,6 +24,7 @@ interface CockpitHudOverlayProps {
 export const CockpitHudOverlay: React.FC<CockpitHudOverlayProps> = ({
   activeWaypoint,
   targetInfo,
+  showTargetPopup,
   coordX,
   coordY,
   coordZ,
@@ -29,6 +34,9 @@ export const CockpitHudOverlay: React.FC<CockpitHudOverlayProps> = ({
   audioActive,
   onNavigate,
   onInspectTarget,
+  onCloseTargetPopup,
+  onCardMouseEnter,
+  onCardMouseLeave,
   onToggleFreecam,
   onToggleAudio,
 }) => {
@@ -73,13 +81,13 @@ export const CockpitHudOverlay: React.FC<CockpitHudOverlayProps> = ({
   };
 
   return (
-    <div className="hidden lg:flex absolute inset-0 pointer-events-none flex-col justify-between p-4 z-30 select-none">
+    <div className="hidden lg:flex absolute inset-x-0 top-16 bottom-16 pointer-events-none flex-col justify-between p-3 sm:p-4 z-30 select-none overflow-hidden">
       {/* Tactical Grid Background */}
       <div className="absolute inset-0 pointer-events-none opacity-20 bg-[linear-gradient(to_right,rgba(0,242,254,0.06)_1px,transparent_1px),linear-gradient(to_bottom,rgba(0,242,254,0.06)_1px,transparent_1px)] bg-[size:4rem_4rem]" />
 
       {/* Central Crosshairs & Navigational Reticle */}
       <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-        <div className="relative w-72 h-72 rounded-full border border-[#00f2fe]/10 flex items-center justify-center">
+        <div className="relative w-64 h-64 xl:w-72 xl:h-72 rounded-full border border-[#00f2fe]/10 flex items-center justify-center">
           <div
             className="absolute inset-0 rounded-full border-t border-[#00f2fe]/30 animate-spin"
             style={{ animationDuration: '24s' }}
@@ -97,20 +105,20 @@ export const CockpitHudOverlay: React.FC<CockpitHudOverlayProps> = ({
       </div>
 
       {/* TOP SECTION: Cockpit telemetry bar + Quick Waypoint selector */}
-      <div className="flex flex-col gap-2.5 w-full">
+      <div className="flex flex-col gap-2 w-full">
         {/* Cockpit Status Bar */}
-        <div className="flex items-center justify-between bg-[#0b0e16]/85 backdrop-blur-md px-4 py-2 rounded-lg border border-[#3a494b]/30 shadow-lg pointer-events-auto">
-          <div className="flex items-center gap-4">
+        <div className="flex items-center justify-between bg-[#0b0e16]/85 backdrop-blur-md px-3.5 py-1.5 rounded-lg border border-[#3a494b]/30 shadow-lg pointer-events-auto">
+          <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-[#00f2fe] animate-ping" />
-              <span className="font-['Space_Grotesk'] text-sm sm:text-base font-bold text-[#e0fdff] uppercase tracking-wider">
+              <span className="font-['Space_Grotesk'] text-xs sm:text-sm font-bold text-[#e0fdff] uppercase tracking-wider">
                 Engineering Odyssey
               </span>
-              <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-[#272a33] text-[#00f2fe] border border-[#00f2fe]/20">
+              <span className="font-mono text-[9px] px-1.5 py-0.5 rounded bg-[#272a33] text-[#00f2fe] border border-[#00f2fe]/20">
                 V4.5 // INTERACTIVE SYSTEM
               </span>
             </div>
-            <div className="hidden sm:block h-4 w-[1px] bg-[#3a494b]/50" />
+            <div className="hidden sm:block h-3.5 w-[1px] bg-[#3a494b]/50" />
             <div className="hidden md:flex items-center gap-2">
               <span className="font-mono text-[10px] text-[#849495] uppercase">
                 Engine Profile:
@@ -122,7 +130,7 @@ export const CockpitHudOverlay: React.FC<CockpitHudOverlayProps> = ({
           </div>
 
           {/* Coordinates */}
-          <div className="flex items-center gap-4 sm:gap-6 font-mono text-xs">
+          <div className="flex items-center gap-3 sm:gap-5 font-mono text-xs">
             <div className="flex items-baseline gap-1">
               <span className="text-[10px] text-[#849495]">X</span>
               <span className="text-[#00f2fe] font-bold">
@@ -162,7 +170,7 @@ export const CockpitHudOverlay: React.FC<CockpitHudOverlayProps> = ({
                 key={wp.key}
                 type="button"
                 onClick={() => onNavigate(wp.key)}
-                className={`group flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#0b0e16]/85 backdrop-blur-md transition-all shadow-md cursor-pointer border ${
+                className={`group flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#0b0e16]/85 backdrop-blur-md transition-all shadow-md cursor-pointer border ${
                   isSelected
                     ? 'ring-2 ring-[#00f2fe] bg-[#1d1f28] text-[#00f2fe]'
                     : `text-[#b9cacb] hover:bg-[#272a33] hover:text-[#e1e2ee] ${wp.borderClass}`
@@ -172,7 +180,7 @@ export const CockpitHudOverlay: React.FC<CockpitHudOverlayProps> = ({
                 <span className="font-mono text-xs tracking-wider uppercase font-semibold">
                   {wp.code}
                 </span>
-                <span className="font-body text-xs text-[#849495] hidden xl:inline">
+                <span className="font-body text-xs text-[#849495] hidden 2xl:inline">
                   • {wp.label}
                 </span>
               </button>
@@ -183,7 +191,7 @@ export const CockpitHudOverlay: React.FC<CockpitHudOverlayProps> = ({
           <button
             type="button"
             onClick={() => onNavigate('reset')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all shadow-md cursor-pointer border ${
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg transition-all shadow-md cursor-pointer border ${
               activeWaypoint === 'reset'
                 ? 'bg-[#1d1f28] ring-2 ring-[#00f2fe] text-[#00f2fe] border-[#00f2fe]/40'
                 : 'bg-[#272a33] hover:bg-[#363943] text-[#e1e2ee] border-[#3a494b]/40'
@@ -199,47 +207,62 @@ export const CockpitHudOverlay: React.FC<CockpitHudOverlayProps> = ({
         </div>
       </div>
 
-      {/* CENTER HUD: Floating Target Scanner Reticle Card */}
-      <div className="flex justify-center items-start w-full relative">
-        <div
-          id="scanner-reticle"
-          className="transition-all duration-300 opacity-95 pointer-events-auto bg-[#0b0e16]/90 backdrop-blur-xl p-3 sm:p-4 rounded-xl shadow-2xl flex items-center gap-3 sm:gap-4 max-w-xl border border-[#00f2fe]/35"
-        >
-          <div className="relative w-10 h-10 rounded-lg bg-[#1d1f28] flex items-center justify-center border border-[#00f2fe]/30 flex-shrink-0">
-            <span className="material-symbols-outlined text-[#00f2fe] text-[22px] animate-pulse">
-              {targetInfo.icon || 'radar'}
-            </span>
-          </div>
-
-          <div className="flex flex-col min-w-0 pr-2">
-            <div className="flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#00f2fe]" />
-              <span className="font-mono text-[10px] text-[#849495] uppercase tracking-wider truncate">
-                {targetInfo.category || 'OPTICAL SENSOR ACQUIRED'}
-              </span>
-            </div>
-            <div className="font-['Space_Grotesk'] text-sm sm:text-base font-bold text-[#e1e2ee] truncate">
-              {targetInfo.name}
-            </div>
-            <div className="font-mono text-[10px] text-[#00f2fe] truncate">
-              {targetInfo.meta || `${targetInfo.subtitle} • ${targetInfo.au.toFixed(2)} AU`}
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={onInspectTarget}
-            className="px-3 py-1.5 bg-[#00f2fe]/20 hover:bg-[#00f2fe] text-[#00f2fe] hover:text-[#002022] rounded-lg transition-all font-mono text-xs uppercase font-bold whitespace-nowrap border border-[#00f2fe]/40 shadow-[0_0_10px_rgba(0,242,254,0.2)] cursor-pointer flex-shrink-0"
+      {/* CENTER HUD: Floating Target Scanner Reticle Card (visible on hover of any celestial body or on navigation) */}
+      {showTargetPopup && targetInfo && targetInfo.id !== 'reset' && (
+        <div className="flex justify-center items-start w-full relative animate-in fade-in zoom-in-95 duration-200">
+          <div
+            id="scanner-reticle"
+            onMouseEnter={onCardMouseEnter}
+            onMouseLeave={onCardMouseLeave}
+            className="transition-all duration-300 opacity-95 pointer-events-auto bg-[#0b0e16]/95 backdrop-blur-xl p-3 sm:p-4 rounded-xl shadow-2xl flex items-center gap-3 sm:gap-4 max-w-xl border border-[#00f2fe]/45"
           >
-            Inspecter
-          </button>
+            <div
+              onClick={onInspectTarget}
+              className="flex items-center gap-3 sm:gap-4 flex-1 cursor-pointer min-w-0"
+              title="Cliquer pour ouvrir les détails"
+            >
+              <div className="relative w-10 h-10 rounded-lg bg-[#1d1f28] flex items-center justify-center border border-[#00f2fe]/30 flex-shrink-0">
+                <span className="material-symbols-outlined text-[#00f2fe] text-[22px] animate-pulse">
+                  {targetInfo.icon || 'radar'}
+                </span>
+              </div>
+
+              <div className="flex flex-col min-w-0 pr-2 flex-1">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#00f2fe] animate-ping" />
+                  <span className="font-mono text-[10px] text-[#00f2fe] uppercase tracking-wider truncate font-semibold">
+                    {targetInfo.category || 'CAPTEUR OPTIQUE ACTIF // VECTEUR VERROUILLÉ'}
+                  </span>
+                </div>
+                <div className="font-['Space_Grotesk'] text-sm sm:text-base font-bold text-[#e1e2ee] truncate">
+                  {targetInfo.name}
+                </div>
+                <div className="font-mono text-[10px] text-[#849495] truncate">
+                  {targetInfo.meta || `${targetInfo.subtitle} • ${targetInfo.au.toFixed(2)} AU`}
+                </div>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onCloseTargetPopup();
+              }}
+              className="w-7 h-7 rounded-lg hover:bg-[#272a33] text-[#849495] hover:text-[#fff] flex items-center justify-center transition-colors cursor-pointer flex-shrink-0 ml-1"
+              title="Fermer la vue télémétrique"
+              aria-label="Fermer la vue"
+            >
+              <span className="material-symbols-outlined text-[18px]">close</span>
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* BOTTOM SECTION: Chronological Timeline, Flight Guides, and Thrusters */}
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end w-full">
+      <div className="grid grid-cols-12 gap-2.5 xl:gap-3 items-end w-full">
         {/* Left: Interactive Chronological Odyssey Vector */}
-        <div className="md:col-span-5 bg-[#0b0e16]/85 backdrop-blur-md p-3 rounded-lg shadow-lg pointer-events-auto flex flex-col gap-1.5 border border-[#3a494b]/30">
+        <div className="col-span-5 bg-[#0b0e16]/85 backdrop-blur-md p-3 rounded-lg shadow-lg pointer-events-auto flex flex-col gap-1.5 border border-[#3a494b]/30">
           <div className="flex items-center justify-between text-[#849495] font-mono text-[10px]">
             <span className="uppercase flex items-center gap-1">
               <span className="material-symbols-outlined text-[14px] text-[#dcb8ff]">
@@ -286,23 +309,23 @@ export const CockpitHudOverlay: React.FC<CockpitHudOverlayProps> = ({
         </div>
 
         {/* Center: Flight Instructions */}
-        <div className="md:col-span-4 bg-[#0b0e16]/85 backdrop-blur-md px-4 py-2.5 rounded-lg shadow-lg pointer-events-auto flex items-center justify-between border border-[#3a494b]/30">
+        <div className="col-span-4 bg-[#0b0e16]/85 backdrop-blur-md px-4 py-2.5 rounded-lg shadow-lg pointer-events-auto flex items-center justify-between border border-[#3a494b]/30">
           <div className="flex items-center gap-2.5">
             <div className="w-7 h-7 rounded bg-[#1d1f28] flex items-center justify-center border border-[#00f2fe]/20">
               <span className="material-symbols-outlined text-[#00f2fe] text-[18px]">
                 navigation
               </span>
             </div>
-            <div className="flex flex-col">
-              <span className="font-mono text-xs text-[#00f2fe] uppercase font-semibold">
+            <div className="flex flex-col min-w-0">
+              <span className="font-mono text-xs text-[#00f2fe] uppercase font-semibold truncate">
                 Pilotage Spatial Actif
               </span>
-              <span className="font-body text-[11px] text-[#849495]">
+              <span className="font-body text-[11px] text-[#849495] truncate">
                 Survol d'un astre • Clic 3D pour approche
               </span>
             </div>
           </div>
-          <div className="flex items-center gap-1 font-mono text-[10px] text-[#849495]">
+          <div className="flex items-center gap-1 font-mono text-[10px] text-[#849495] shrink-0">
             <kbd className="px-1.5 py-0.5 rounded bg-[#1d1f28] border border-[#3a494b]/50">
               SURVOL
             </kbd>
@@ -313,7 +336,7 @@ export const CockpitHudOverlay: React.FC<CockpitHudOverlayProps> = ({
         </div>
 
         {/* Right: Propulsion and Toggles */}
-        <div className="md:col-span-3 bg-[#0b0e16]/85 backdrop-blur-md p-3 rounded-lg shadow-lg pointer-events-auto flex items-center justify-between border border-[#3a494b]/30">
+        <div className="col-span-3 bg-[#0b0e16]/85 backdrop-blur-md p-3 rounded-lg shadow-lg pointer-events-auto flex items-center justify-between border border-[#3a494b]/30">
           <div className="flex flex-col">
             <span className="font-mono text-[10px] text-[#849495] uppercase">
               Thrusters

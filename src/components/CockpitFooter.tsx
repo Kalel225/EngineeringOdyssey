@@ -12,7 +12,7 @@ export const CockpitFooter: React.FC<CockpitFooterProps> = ({
   pingMs,
 }) => {
   return (
-    <footer className="hidden lg:flex fixed bottom-0 left-64 right-0 h-16 bg-[#0b0e16]/90 backdrop-blur-xl z-40 px-6 items-center justify-between border-t border-[#3a494b]/30 shadow-[0_-1px_12px_rgba(0,0,0,0.4)] select-none">
+    <footer className="hidden lg:flex fixed bottom-0 left-0 right-0 h-16 bg-[#0b0e16]/90 backdrop-blur-xl z-40 px-4 xl:px-6 items-center justify-between border-t border-[#3a494b]/30 shadow-[0_-1px_12px_rgba(0,0,0,0.4)] select-none">
       {/* Left target acquisition info */}
       <div className="flex items-center gap-3">
         <div className="relative flex items-center justify-center w-8 h-8 rounded-full bg-[#1d1f28] border border-[#00f2fe]/30">
