@@ -8,6 +8,8 @@ interface CockpitSidebarProps {
   warpHarmonic: string;
   isOpen: boolean;
   onClose: () => void;
+  onReboot?: () => void;
+  onOpenScanner?: () => void;
 }
 
 export const CockpitSidebar: React.FC<CockpitSidebarProps> = ({
@@ -17,146 +19,229 @@ export const CockpitSidebar: React.FC<CockpitSidebarProps> = ({
   warpHarmonic,
   isOpen,
   onClose,
+  onReboot,
+  onOpenScanner,
 }) => {
   const navItems = [
     {
       key: 'reset' as WaypointKey,
-      label: 'Flight Deck',
-      icon: 'radar',
-      sublabel: 'Vue Globale',
-    },
-    {
-      key: 'nextjs' as WaypointKey,
-      label: 'Orbital Chart',
-      icon: 'explore',
-      sublabel: 'Planète Next.js',
+      code: 'SYS',
+      label: 'Planisphère du Système',
+      icon: 'public',
+      sublabel: 'Secteur 12-Vega • Écliptique',
     },
     {
       key: 'sun' as WaypointKey,
-      label: 'Sol Base (Origines)',
+      code: '00',
+      label: 'Sol Base • Origines',
       icon: 'wb_sunny',
-      sublabel: 'Genèse & Profil',
+      sublabel: '0.00 AU • Fondations C/C++ & Algo',
     },
     {
-      key: 'station' as WaypointKey,
-      label: 'Station DevOps',
-      icon: 'memory',
-      sublabel: 'Cloud K8s & Observabilité',
+      key: 'nextjs' as WaypointKey,
+      code: '01',
+      label: 'Planète Next.js • Edge',
+      icon: 'rocket_launch',
+      sublabel: '3.48 AU • SSR 15 & Cache Global',
     },
     {
       key: 'asteroids' as WaypointKey,
+      code: '02',
       label: 'Ceinture Open Source',
-      icon: 'public',
-      sublabel: 'Contributions & RFCs',
+      icon: 'hub',
+      sublabel: '5.82 AU • 6 PRs Majeures & RFCs',
+    },
+    {
+      key: 'station' as WaypointKey,
+      code: '03',
+      label: 'Station DevOps • Cloud',
+      icon: 'dns',
+      sublabel: '8.41 AU • Kubernetes & Multi-Cloud',
     },
   ];
 
   return (
     <>
-      {/* Optional subtle backdrop on desktop when drawer is open */}
+      {/* Matte Backdrop (no expensive backdrop-filter over WebGL) */}
       {isOpen && (
         <div
           onClick={onClose}
-          className="hidden lg:block fixed inset-0 bg-black/40 backdrop-blur-[2px] z-40 transition-opacity animate-in fade-in"
-          title="Cliquer pour refermer la console"
+          className="fixed inset-0 bg-black/70 z-40 transition-opacity animate-in fade-in"
+          title="Cliquer pour refermer l'index"
         />
       )}
 
       <aside
-        className={`hidden lg:flex fixed left-0 top-0 h-full w-64 bg-[#0b0e16]/95 backdrop-blur-2xl z-50 flex-col justify-between p-4 border-r border-[#3a494b]/40 select-none shadow-[4px_0_24px_rgba(0,0,0,0.7)] transition-all duration-300 ease-in-out ${
-          isOpen ? 'translate-x-0 opacity-100 pointer-events-auto' : '-translate-x-full opacity-0 pointer-events-none'
+        className={`fixed left-0 top-0 h-full w-80 max-w-[88vw] obsidian-glass z-50 flex flex-col justify-between p-5 border-r border-slate-400/15 select-none transition-all duration-300 ease-out ${
+          isOpen
+            ? 'translate-x-0 opacity-100 pointer-events-auto'
+            : '-translate-x-full opacity-0 pointer-events-none'
         }`}
       >
-        <div className="flex flex-col gap-6">
-          {/* Logo, system status and close button */}
-          <div className="flex items-center justify-between px-1">
-            <div className="flex items-center gap-2">
-              <div className="w-2.5 h-2.5 rounded-full bg-[#00f2fe] animate-pulse shadow-[0_0_8px_#00f2fe]" />
-              <span className="font-mono text-sm font-semibold tracking-widest text-[#e0fdff] uppercase">
-                Odyssey // Core
-              </span>
+        <div className="flex flex-col gap-5 overflow-y-auto pr-1">
+          {/* Header */}
+          <div className="flex items-center justify-between border-b border-slate-400/15 pb-4">
+            <div className="flex items-center gap-2.5">
+              <div className="w-2 h-2 rounded-full bg-[#e5a93c]" />
+              <div>
+                <span className="font-display text-sm font-bold tracking-[0.16em] text-slate-100 uppercase block">
+                  Index Stellaire
+                </span>
+                <span className="font-mono text-[9px] tracking-[0.18em] text-slate-400 uppercase">
+                  Navigation & Raccourcis
+                </span>
+              </div>
             </div>
 
             <button
               type="button"
               onClick={onClose}
-              className="w-7 h-7 rounded-lg hover:bg-[#272a33] text-[#849495] hover:text-[#fff] flex items-center justify-center transition-colors cursor-pointer"
-              title="Réduire la console de bord"
-              aria-label="Fermer la console"
+              className="w-9 h-9 rounded-lg bg-[#0d1422] hover:bg-[#141f35] text-slate-400 hover:text-slate-100 flex items-center justify-center transition-colors cursor-pointer border border-slate-400/15"
+              title="Fermer l'index (Échap)"
+              aria-label="Fermer l'index"
             >
-              <span className="material-symbols-outlined text-[18px]">chevron_left</span>
+              <span className="material-symbols-outlined text-[18px]">close</span>
             </button>
           </div>
 
-        {/* Waypoints Navigation list */}
-        <div className="flex flex-col gap-1.5">
-          <div className="flex items-center justify-between px-2 pb-1 border-b border-[#3a494b]/30">
-            <span className="font-mono text-[10px] tracking-wider text-[#849495] uppercase">
-              Waypoints // Nav
-            </span>
-            <span className="font-mono text-[10px] text-[#00f2fe]/70">SYS.LOC</span>
+          {/* Waypoints Navigation List */}
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center justify-between px-1 pb-1">
+              <span className="font-mono text-[9px] tracking-[0.22em] text-slate-400 uppercase">
+                Chapitres Orbitaux
+              </span>
+              <span className="font-mono text-[9px] text-sky-400/90 tabular-nums">TOUCHES 0–4</span>
+            </div>
+
+            <nav className="flex flex-col gap-1.5">
+              {navItems.map((item) => {
+                const isActive = activeWaypoint === item.key;
+                return (
+                  <button
+                    key={item.key}
+                    type="button"
+                    onClick={() => {
+                      onNavigate(item.key);
+                      onClose();
+                    }}
+                    className={`flex items-center justify-between p-3 rounded-xl transition-all text-left cursor-pointer group border ${
+                      isActive
+                        ? 'bg-sky-400/12 text-slate-50 border-sky-400/45'
+                        : 'bg-[#0b101b] hover:bg-[#11192a] text-slate-300 hover:text-slate-100 border-slate-400/10'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div
+                        className={`w-9 h-9 rounded-lg flex items-center justify-center border shrink-0 transition-colors ${
+                          isActive
+                            ? 'bg-sky-400 text-[#050810] border-sky-400'
+                            : 'bg-[#101829] text-slate-400 group-hover:text-sky-400 border-slate-400/15'
+                        }`}
+                      >
+                        <span className="material-symbols-outlined text-[18px]">
+                          {item.icon}
+                        </span>
+                      </div>
+                      <div className="flex flex-col min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-mono text-[9px] text-sky-400 uppercase tabular-nums">
+                            [{item.code}]
+                          </span>
+                          <span className="font-display text-xs font-semibold truncate">
+                            {item.label}
+                          </span>
+                        </div>
+                        <span className="font-mono text-[10px] text-slate-400 truncate mt-0.5 tabular-nums">
+                          {item.sublabel}
+                        </span>
+                      </div>
+                    </div>
+
+                    <span className="material-symbols-outlined text-[15px] text-slate-500 group-hover:text-sky-400 group-hover:translate-x-0.5 transition-all">
+                      arrow_forward
+                    </span>
+                  </button>
+                );
+              })}
+            </nav>
           </div>
 
-          <nav className="flex flex-col gap-1 mt-1">
-            {navItems.map((item) => {
-              const isActive = activeWaypoint === item.key;
-              return (
-                <button
-                  key={item.key}
-                  type="button"
-                  onClick={() => onNavigate(item.key)}
-                  className={`flex items-center justify-between px-3 py-2 rounded transition-all text-left group ${
-                    isActive
-                      ? 'bg-[#1d1f28] text-[#00f2fe] font-semibold border-l-2 border-[#00f2fe] shadow-[inset_0_1px_1px_rgba(255,255,255,0.08)]'
-                      : 'text-[#b9cacb] hover:bg-[#272a33] hover:text-[#e1e2ee] border-l-2 border-transparent'
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <span
-                      className={`material-symbols-outlined text-[18px] transition-transform duration-200 group-hover:scale-110 ${
-                        isActive ? 'text-[#00f2fe]' : 'text-[#849495] group-hover:text-[#00f2fe]'
-                      }`}
-                    >
-                      {item.icon}
-                    </span>
-                    <span className="font-mono text-xs tracking-wide truncate">
-                      {item.label}
-                    </span>
-                  </div>
-                  {isActive && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#00f2fe] animate-ping" />
-                  )}
-                </button>
-              );
-            })}
-          </nav>
-        </div>
-      </div>
-
-      {/* Core Integrity & Warp Harmonic telemetry footer */}
-      <div className="flex flex-col gap-3 bg-[#191b24]/80 p-3 rounded border border-[#3a494b]/30 shadow-inner">
-        <div className="flex items-center justify-between text-[#b9cacb] font-mono text-[10px]">
-          <span className="tracking-wider">CORE INTEGRITY</span>
-          <span className="text-[#00f2fe] text-xs font-bold font-mono">
-            {coreIntegrity.toFixed(2)}%
-          </span>
+          {/* PC & Touch Ergonomics Cheat Sheet */}
+          <div className="bg-[#0b101b] rounded-xl p-3.5 border border-slate-400/15 space-y-2.5">
+            <span className="font-mono text-[9px] tracking-[0.2em] text-sky-400 uppercase block">
+              Commandes PC & Tactiles
+            </span>
+            <div className="space-y-1.5 font-mono text-[10px] text-slate-300">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-slate-400">Planisphère / Observ.</span>
+                <span className="text-slate-200">Touche [P]</span>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-slate-400">Orbite 360°</span>
+                <span className="text-slate-200">Clic + Glisser / 1 Doigt</span>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-slate-400">Zoom Caméra</span>
+                <span className="text-slate-200">Molette / Pincer</span>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-slate-400">Chapitre Suiv./Préc.</span>
+                <span className="text-slate-200">Touches ← / →</span>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-slate-400">Mode Voyage / Libre</span>
+                <span className="text-slate-200">Touche [V]</span>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-slate-400">Scanner Spectral</span>
+                <span className="text-slate-200">Touche [S]</span>
+              </div>
+            </div>
+          </div>
         </div>
 
-        <div className="w-full h-1.5 bg-[#32343e] rounded-full overflow-hidden p-0.5">
-          <div
-            className="h-full bg-gradient-to-r from-[#00dce6] to-[#00f2fe] rounded-full transition-all duration-500 shadow-[0_0_8px_rgba(0,242,254,0.6)]"
-            style={{ width: `${coreIntegrity}%` }}
-          />
-        </div>
+        {/* Footer Actions & Telemetry */}
+        <div className="flex flex-col gap-2.5 pt-4 border-t border-slate-400/15">
+          {onOpenScanner && (
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                onOpenScanner();
+              }}
+              className="flex items-center justify-between px-3.5 py-2.5 rounded-lg bg-sky-400/12 hover:bg-sky-400/20 text-sky-300 border border-sky-400/35 text-xs font-mono transition-all cursor-pointer"
+            >
+              <span className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-[16px]">sensors</span>
+                <span>Scanner Multispectral</span>
+              </span>
+              <span className="text-[9px] tracking-widest uppercase text-sky-400">DSP Live</span>
+            </button>
+          )}
 
-        <div className="flex items-center justify-between text-[#b9cacb] font-mono text-[10px] pt-1 border-t border-[#3a494b]/20">
-          <span className="tracking-wider">WARP HARMONIC</span>
-          <span className="text-[#dcb8ff] text-xs font-semibold font-mono tracking-wider">
-            {warpHarmonic}
-          </span>
+          {onReboot && (
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                onReboot();
+              }}
+              className="flex items-center justify-between px-3.5 py-2 rounded-lg bg-[#0d1422] hover:bg-[#141f35] text-slate-300 hover:text-slate-100 border border-slate-400/15 text-xs font-mono transition-all cursor-pointer"
+            >
+              <span className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-[16px]">restart_alt</span>
+                <span>Relancer l'Amorce</span>
+              </span>
+              <span className="text-[9px] text-slate-400 uppercase">Boot</span>
+            </button>
+          )}
+
+          <div className="flex items-center justify-between text-slate-400 font-mono text-[9px] pt-1 px-1 tabular-nums">
+            <span>INTÉGRITÉ {coreIntegrity.toFixed(1)}%</span>
+            <span className="text-amber-300">{warpHarmonic}</span>
+          </div>
         </div>
-      </div>
-    </aside>
-  </>
+      </aside>
+    </>
   );
 };

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { CelestialType, OpenSourceProject, ClusterLog, WaypointKey, OfficerUser } from '../types';
+import { sanitizeExternalUrl, sanitizeTextInput, verifyOfficerCredentials } from '../utils/security';
 
 interface CockpitModalsProps {
   activeModal: string | null;
@@ -8,6 +9,7 @@ interface CockpitModalsProps {
   isAuthenticated: boolean;
   officerUser: OfficerUser | null;
   onClose: () => void;
+  onOpenContact?: () => void;
   onNavigate: (key: WaypointKey) => void;
   onAddProject: (newProject: {
     title: string;
@@ -27,12 +29,12 @@ export const CockpitModals: React.FC<CockpitModalsProps> = ({
   isAuthenticated,
   officerUser,
   onClose,
+  onOpenContact,
   onNavigate,
   onAddProject,
   onAuthenticate,
   onLogout,
 }) => {
-  // Add project form state
   const [formData, setFormData] = useState({
     title: '',
     type: 'planet' as CelestialType,
@@ -42,13 +44,12 @@ export const CockpitModals: React.FC<CockpitModalsProps> = ({
   });
   const [formStatus, setFormStatus] = useState<'idle' | 'syncing' | 'success'>('idle');
 
-  // Authentication form state
   const [authEmail, setAuthEmail] = useState('alexandre.vance@odyssey-core.space');
-  const [authPasscode, setAuthPasscode] = useState('ODYSSEY-2026');
+  const [authPasscode, setAuthPasscode] = useState('');
   const [authError, setAuthError] = useState<string | null>(null);
   const [authLoading, setAuthLoading] = useState(false);
 
-  // Contact form state
+  const [contactSender, setContactSender] = useState('');
   const [contactMessage, setContactMessage] = useState('');
   const [contactStatus, setContactStatus] = useState<'idle' | 'sending' | 'sent'>('idle');
 
@@ -56,29 +57,34 @@ export const CockpitModals: React.FC<CockpitModalsProps> = ({
 
   const handleAuthSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!authEmail.trim() || !authPasscode.trim()) {
-      setAuthError('Veuillez renseigner un identifiant et un code d’habilitation.');
+    const verification = verifyOfficerCredentials(authEmail, authPasscode);
+    if (!verification.valid) {
+      setAuthError(verification.error || 'Échec de vérification des identifiants.');
       return;
     }
+
     setAuthLoading(true);
     setAuthError(null);
 
     setTimeout(() => {
       setAuthLoading(false);
+      setAuthPasscode('');
       onAuthenticate({
         name: 'Alexandre Vance',
         rank: 'Commandant de Mission',
         callsign: 'ODYSSEY-LEAD',
         clearanceLevel: 4,
-        email: authEmail.trim(),
+        email: sanitizeTextInput(authEmail, 120),
       });
-    }, 450);
+    }, 350);
   };
 
   const handleInstantAuth = () => {
     setAuthLoading(true);
+    setAuthError(null);
     setTimeout(() => {
       setAuthLoading(false);
+      setAuthPasscode('');
       onAuthenticate({
         name: 'Alexandre Vance',
         rank: 'Commandant de Mission',
@@ -86,7 +92,7 @@ export const CockpitModals: React.FC<CockpitModalsProps> = ({
         clearanceLevel: 4,
         email: 'alexandre.vance@odyssey-core.space',
       });
-    }, 200);
+    }, 150);
   };
 
   const handleFormSubmit = (e: React.FormEvent) => {
@@ -95,11 +101,22 @@ export const CockpitModals: React.FC<CockpitModalsProps> = ({
       setAuthError('Habilitation requise pour valider et déployer ce projet.');
       return;
     }
-    if (!formData.title.trim() || !formData.stack.trim()) return;
+    const cleanTitle = sanitizeTextInput(formData.title, 80);
+    const cleanStack = sanitizeTextInput(formData.stack, 100);
+    const cleanDesc = sanitizeTextInput(formData.desc, 280);
+    const cleanUrl = sanitizeExternalUrl(formData.url);
+
+    if (!cleanTitle || !cleanStack) return;
 
     setFormStatus('syncing');
     setTimeout(() => {
-      onAddProject(formData);
+      onAddProject({
+        title: cleanTitle,
+        type: formData.type,
+        stack: cleanStack,
+        url: cleanUrl,
+        desc: cleanDesc,
+      });
       setFormStatus('success');
       setTimeout(() => {
         setFormStatus('idle');
@@ -115,46 +132,48 @@ export const CockpitModals: React.FC<CockpitModalsProps> = ({
         else if (formData.type === 'station') onNavigate('station');
         else if (formData.type === 'sun') onNavigate('sun');
         else onNavigate('nextjs');
-      }, 700);
-    }, 600);
+      }, 650);
+    }, 500);
   };
 
   const handleContactSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!contactMessage.trim()) return;
+    const cleanMessage = sanitizeTextInput(contactMessage, 500);
+    if (!cleanMessage) return;
     setContactStatus('sending');
     setTimeout(() => {
       setContactStatus('sent');
       setTimeout(() => {
         setContactStatus('idle');
+        setContactSender('');
         setContactMessage('');
         onClose();
-      }, 1200);
-    }, 800);
+      }, 1100);
+    }, 600);
   };
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md transition-opacity duration-300"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 transition-opacity duration-200"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
       {/* 1. SOL BASE MODAL (HERO & BIO DE L'INGENIEUR) */}
       {activeModal === 'modal-sun' && (
-        <div className="w-full max-w-4xl max-h-[90vh] sm:max-h-[85vh] overflow-y-auto bg-[#0b0e16]/95 backdrop-blur-2xl rounded-2xl p-4 sm:p-6 md:p-8 shadow-2xl border border-amber-500/40 animate-in fade-in zoom-in-95 duration-200">
-          <div className="flex items-start justify-between pb-4 border-b border-[#32343e] gap-2">
+        <div className="w-full max-w-4xl max-h-[90vh] sm:max-h-[85vh] overflow-y-auto bg-[#090e1a] rounded-2xl p-4 sm:p-6 md:p-8 shadow-2xl border border-amber-400/35 animate-in fade-in zoom-in-95 duration-200">
+          <div className="flex items-start justify-between pb-4 border-b border-slate-400/15 gap-2">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-amber-500/20 flex items-center justify-center border border-amber-400/40 shadow-[0_0_12px_rgba(245,158,11,0.3)] shrink-0">
+              <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-amber-500/15 flex items-center justify-center border border-amber-400/35 shrink-0">
                 <span className="material-symbols-outlined text-amber-400 text-[24px] sm:text-[26px]">
                   wb_sunny
                 </span>
               </div>
               <div className="flex flex-col">
-                <span className="font-mono text-[10px] sm:text-xs text-amber-400 uppercase tracking-widest font-semibold">
-                  Base Stellaire // Genèse & Profil de l'Ingénieur (0.0 AU)
+                <span className="font-mono text-[10px] sm:text-xs text-amber-400 uppercase tracking-widest font-semibold tabular-nums">
+                  Étoile G2V • Genèse & Profil de l'Ingénieur (0.00 AU)
                 </span>
-                <h2 className="font-['Space_Grotesk'] text-lg sm:text-2xl font-bold text-[#e1e2ee]">
+                <h2 className="font-display text-lg sm:text-2xl font-bold text-slate-100">
                   Alexandre Vance • Architecte Système
                 </h2>
               </div>
@@ -162,7 +181,7 @@ export const CockpitModals: React.FC<CockpitModalsProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="w-9 h-9 sm:w-8 sm:h-8 rounded-lg hover:bg-[#272a33] flex items-center justify-center text-[#849495] hover:text-[#fff] transition-colors cursor-pointer shrink-0"
+              className="w-9 h-9 sm:w-8 sm:h-8 rounded-lg hover:bg-[#141f35] flex items-center justify-center text-slate-400 hover:text-slate-100 transition-colors cursor-pointer shrink-0"
               aria-label="Fermer la fenêtre"
             >
               <span className="material-symbols-outlined text-[20px]">close</span>
@@ -171,16 +190,16 @@ export const CockpitModals: React.FC<CockpitModalsProps> = ({
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
             <div className="md:col-span-2 flex flex-col gap-4">
-              <p className="font-body text-sm sm:text-base text-[#b9cacb] leading-relaxed">
-                Bienvenue à la base de départ de l'Odyssée. Passionné par l'architecture logicielle de haute volée, j'ai forgé mes armes sur les fondations immuables de l'informatique théorique avant d'explorer les confins du cloud distribué moderne et des applications Edge temps-réel.
+              <p className="font-body text-sm sm:text-base text-slate-300 leading-relaxed">
+                Bienvenue au cœur héliocentrique de l'Odyssée. Passionné par l'architecture logicielle de haute précision, j'ai forgé mes armes sur les fondations immuables de l'informatique théorique avant d'explorer les confins du cloud distribué moderne et des applications Edge temps-réel.
               </p>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-[#191b24]/80 p-4 rounded-xl border border-amber-500/20">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-[#0f1626] p-4 rounded-xl border border-amber-400/20">
                 <div>
                   <span className="font-mono text-xs text-amber-400 uppercase font-semibold block mb-1">
                     Origines Fondamentales
                   </span>
-                  <span className="font-body text-xs text-[#e1e2ee]">
+                  <span className="font-body text-xs text-slate-200 leading-relaxed">
                     C / C++ • Algorithmes de Tri & Arbres B+ • Protocoles TCP/UDP • Assembleur • Moteurs de rendu WebGL / Three.js
                   </span>
                 </div>
@@ -188,7 +207,7 @@ export const CockpitModals: React.FC<CockpitModalsProps> = ({
                   <span className="font-mono text-xs text-amber-400 uppercase font-semibold block mb-1">
                     Philosophie de Conception
                   </span>
-                  <span className="font-body text-xs text-[#e1e2ee]">
+                  <span className="font-body text-xs text-slate-200 leading-relaxed">
                     Sobriété computationnelle, résilience aux pannes, interfaces à latence zéro et craft typographique millimétré.
                   </span>
                 </div>
@@ -197,8 +216,14 @@ export const CockpitModals: React.FC<CockpitModalsProps> = ({
               <div className="flex items-center gap-3 pt-2 flex-wrap">
                 <button
                   type="button"
-                  onClick={() => onClose()}
-                  className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-amber-400/20 hover:bg-amber-400 text-amber-300 hover:text-[#0b0e16] font-mono text-xs uppercase font-bold transition-all border border-amber-400/40 cursor-pointer min-h-[44px]"
+                  onClick={() => {
+                    if (onOpenContact) {
+                      onOpenContact();
+                    } else {
+                      onClose();
+                    }
+                  }}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-amber-400/15 hover:bg-amber-400 text-amber-300 hover:text-[#070a12] font-mono text-xs uppercase font-bold transition-all border border-amber-400/40 cursor-pointer min-h-[44px]"
                 >
                   <span className="material-symbols-outlined text-[16px]">mail</span>
                   Établir Contact Comms
@@ -209,9 +234,9 @@ export const CockpitModals: React.FC<CockpitModalsProps> = ({
                     onClose();
                     onNavigate('nextjs');
                   }}
-                  className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-[#272a33] hover:bg-[#363943] text-[#e1e2ee] font-mono text-xs uppercase font-semibold transition-all border border-[#3a494b]/40 cursor-pointer min-h-[44px]"
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-[#121a2b] hover:bg-[#1a253d] text-slate-100 font-mono text-xs uppercase font-semibold transition-all border border-slate-400/20 cursor-pointer min-h-[44px]"
                 >
-                  <span className="material-symbols-outlined text-[16px] text-[#00f2fe]">
+                  <span className="material-symbols-outlined text-[16px] text-sky-400">
                     rocket_launch
                   </span>
                   Cap sur Planète Next.js ↗
@@ -220,146 +245,230 @@ export const CockpitModals: React.FC<CockpitModalsProps> = ({
             </div>
 
             {/* Right sidebar pilot stats */}
-            <div className="bg-[#191b24]/90 p-5 rounded-xl border border-amber-500/25 flex flex-col justify-between">
+            <div className="bg-[#0f1626] p-5 rounded-xl border border-amber-400/20 flex flex-col justify-between">
               <div className="flex flex-col gap-3">
                 <span className="font-mono text-xs text-amber-400 uppercase tracking-wider font-semibold">
                   Paramètres Pilote
                 </span>
-                <div className="flex items-center justify-between text-[#e1e2ee] font-mono text-xs py-1.5 border-b border-[#32343e]">
-                  <span className="text-[#849495]">Expérience</span>
-                  <span className="text-amber-400 font-bold">8+ Ans</span>
+                <div className="flex items-center justify-between text-slate-200 font-mono text-xs py-1.5 border-b border-slate-400/15 tabular-nums">
+                  <span className="text-slate-400">Expérience</span>
+                  <span className="text-amber-300 font-bold">8+ Ans</span>
                 </div>
-                <div className="flex items-center justify-between text-[#e1e2ee] font-mono text-xs py-1.5 border-b border-[#32343e]">
-                  <span className="text-[#849495]">Commits Sol</span>
-                  <span className="text-amber-400 font-bold">4,920+</span>
+                <div className="flex items-center justify-between text-slate-200 font-mono text-xs py-1.5 border-b border-slate-400/15 tabular-nums">
+                  <span className="text-slate-400">Commits Sol</span>
+                  <span className="text-amber-300 font-bold">4,920+</span>
                 </div>
-                <div className="flex items-center justify-between text-[#e1e2ee] font-mono text-xs py-1.5">
-                  <span className="text-[#849495]">Statut Odyssée</span>
-                  <span className="text-[#00f2fe] font-bold">En Orbite</span>
+                <div className="flex items-center justify-between text-slate-200 font-mono text-xs py-1.5 tabular-nums">
+                  <span className="text-slate-400">Statut Odyssée</span>
+                  <span className="text-sky-400 font-bold">En Orbite</span>
                 </div>
               </div>
 
-              <div className="mt-4 p-2.5 rounded-lg bg-[#10131c] font-mono text-[11px] text-amber-300 border border-amber-500/30 text-center">
-                VECTEUR_00 : FONDATIONS ÉPROUVÉES
+              <div className="mt-4 p-2.5 rounded-lg bg-[#070b14] font-mono text-[11px] text-amber-300 border border-amber-400/25 text-center">
+                VECTEUR 00 : FONDATIONS ÉPROUVÉES
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* 2. PLANÈTE NEXT.JS MODAL (ARCHITECTURE & GLASS DASHBOARD) */}
-      {activeModal === 'modal-nextjs' && (
-        <div className="w-full max-w-4xl max-h-[90vh] sm:max-h-[85vh] overflow-y-auto bg-slate-900/90 backdrop-blur-2xl border border-cyan-500/40 rounded-2xl p-4 sm:p-6 md:p-8 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
-          <div className="flex items-start justify-between pb-4 border-b border-cyan-500/25 gap-2">
+      {/* 1B. DIRECT COMMS TRANSMISSION MODAL */}
+      {activeModal === 'modal-contact' && (
+        <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto bg-[#090e1a] rounded-2xl p-5 sm:p-7 shadow-2xl border border-amber-400/35 animate-in fade-in zoom-in-95 duration-200">
+          <div className="flex items-start justify-between pb-4 border-b border-slate-400/15 gap-2">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-cyan-500/20 flex items-center justify-center border border-cyan-400/40 shadow-[0_0_12px_rgba(0,242,254,0.3)] shrink-0">
-                <span className="material-symbols-outlined text-[#00f2fe] text-[24px] sm:text-[26px]">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/15 flex items-center justify-center border border-amber-400/35 shrink-0">
+                <span className="material-symbols-outlined text-amber-400 text-[22px]">
+                  satellite_alt
+                </span>
+              </div>
+              <div className="flex flex-col">
+                <span className="font-mono text-[10px] sm:text-xs text-amber-400 uppercase tracking-widest font-semibold">
+                  Canal Subspatial • Fréquence Directe
+                </span>
+                <h3 className="font-display text-lg sm:text-xl font-bold text-slate-100">
+                  Transmettre un Message à l'Architecte
+                </h3>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-8 h-8 rounded-lg hover:bg-[#141f35] flex items-center justify-center text-slate-400 hover:text-slate-100 transition-colors cursor-pointer shrink-0"
+              aria-label="Fermer"
+            >
+              <span className="material-symbols-outlined text-[20px]">close</span>
+            </button>
+          </div>
+
+          <form onSubmit={handleContactSubmit} className="flex flex-col gap-4 mt-5">
+            <div className="flex flex-col gap-1.5">
+              <label className="font-mono text-xs text-slate-300 uppercase">
+                Votre Identifiant / Email de Retour
+              </label>
+              <input
+                type="email"
+                required
+                maxLength={120}
+                value={contactSender}
+                onChange={(e) => setContactSender(e.target.value)}
+                placeholder="contact@entreprise.com"
+                className="bg-[#0f1626] border border-slate-400/20 rounded-lg px-3 py-2.5 text-sm text-slate-100 font-mono focus:border-amber-400 focus:outline-none"
+              />
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="font-mono text-xs text-slate-300 uppercase">
+                Message / Proposition de Mission
+              </label>
+              <textarea
+                required
+                rows={4}
+                maxLength={500}
+                value={contactMessage}
+                onChange={(e) => setContactMessage(e.target.value)}
+                placeholder="Décrivez votre projet d'architecture, besoin d'audit ou opportunité d'ingénierie..."
+                className="bg-[#0f1626] border border-slate-400/20 rounded-lg px-3 py-2.5 text-sm text-slate-100 font-body focus:border-amber-400 focus:outline-none resize-none"
+              />
+            </div>
+
+            <div className="flex items-center justify-between pt-3 border-t border-slate-400/15 gap-3">
+              <span className="font-mono text-xs text-amber-300">
+                {contactStatus === 'sending'
+                  ? 'ÉMISSION DU PAQUET...'
+                  : contactStatus === 'sent'
+                  ? '✓ TRANSMISSION REÇUE PAR SOL BASE'
+                  : 'CHIFFREMENT TLS 1.3 ACTIF'}
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="px-4 py-2 rounded-lg bg-[#121a2b] text-slate-200 font-mono text-xs uppercase cursor-pointer"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  disabled={contactStatus !== 'idle'}
+                  className="px-5 py-2 rounded-lg bg-amber-400 hover:bg-amber-300 text-[#070a12] font-mono text-xs uppercase font-bold cursor-pointer transition-all"
+                >
+                  Envoyer ↗
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* 2. PLANÈTE NEXT.JS MODAL */}
+      {activeModal === 'modal-nextjs' && (
+        <div className="w-full max-w-4xl max-h-[90vh] sm:max-h-[85vh] overflow-y-auto bg-[#090e1a] border border-sky-400/35 rounded-2xl p-4 sm:p-6 md:p-8 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+          <div className="flex items-start justify-between pb-4 border-b border-slate-400/15 gap-2">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-sky-400/15 flex items-center justify-center border border-sky-400/35 shrink-0">
+                <span className="material-symbols-outlined text-sky-400 text-[24px] sm:text-[26px]">
                   rocket_launch
                 </span>
               </div>
               <div className="flex flex-col">
-                <span className="font-mono text-[10px] sm:text-xs text-[#00f2fe] uppercase tracking-wider font-semibold">
-                  Étude de Cas Glassmorphique // Planète Next.js (3.48 AU)
+                <span className="font-mono text-[10px] sm:text-xs text-sky-400 uppercase tracking-wider font-semibold tabular-nums">
+                  Étude de Cas • Planète Tellurique Next.js (3.48 AU)
                 </span>
-                <h2 className="font-['Space_Grotesk'] text-lg sm:text-2xl font-bold text-[#e1e2ee]">
+                <h2 className="font-display text-lg sm:text-2xl font-bold text-slate-100">
                   Architecture Next.js 15 Enterprise & Edge Streaming SSR
                 </h2>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={onClose}
-                className="w-9 h-9 sm:w-8 sm:h-8 rounded-lg hover:bg-[#272a33] flex items-center justify-center text-[#849495] hover:text-[#fff] transition-colors cursor-pointer shrink-0"
-                aria-label="Fermer la fenêtre"
-              >
-                <span className="material-symbols-outlined text-[20px]">close</span>
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-9 h-9 sm:w-8 sm:h-8 rounded-lg hover:bg-[#141f35] flex items-center justify-center text-slate-400 hover:text-slate-100 transition-colors cursor-pointer shrink-0"
+              aria-label="Fermer la fenêtre"
+            >
+              <span className="material-symbols-outlined text-[20px]">close</span>
+            </button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mt-6">
-            {/* Col 1: Tech Stack */}
-            <div className="flex flex-col gap-2 bg-slate-950/70 p-4 rounded-xl border border-cyan-500/20">
-              <span className="font-mono text-xs text-[#00f2fe] uppercase font-semibold flex items-center gap-1.5">
+            <div className="flex flex-col gap-2 bg-[#0f1626] p-4 rounded-xl border border-slate-400/15">
+              <span className="font-mono text-xs text-sky-400 uppercase font-semibold flex items-center gap-1.5">
                 <span className="material-symbols-outlined text-[15px]">layers</span>
                 Pile Technique
               </span>
-              <ul className="flex flex-col gap-1.5 font-mono text-xs text-[#e1e2ee] mt-1">
+              <ul className="flex flex-col gap-1.5 font-mono text-xs text-slate-200 mt-1">
                 <li className="flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#00f2fe]" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />
                   Next.js 15 (App Router)
                 </li>
                 <li className="flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#00f2fe]" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />
                   React Server Actions & Suspense
                 </li>
                 <li className="flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#00f2fe]" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />
                   Edge Middleware (Geo-routing)
                 </li>
                 <li className="flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#00f2fe]" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />
                   Tailwind CSS & Design Tokens
                 </li>
                 <li className="flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#00f2fe]" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />
                   Vercel Global Edge Network
                 </li>
               </ul>
             </div>
 
-            {/* Col 2: Engineering Challenges */}
-            <div className="flex flex-col gap-2 bg-slate-950/70 p-4 rounded-xl border border-cyan-500/20">
-              <span className="font-mono text-xs text-[#dcb8ff] uppercase font-semibold flex items-center gap-1.5">
+            <div className="flex flex-col gap-2 bg-[#0f1626] p-4 rounded-xl border border-slate-400/15">
+              <span className="font-mono text-xs text-violet-300 uppercase font-semibold flex items-center gap-1.5">
                 <span className="material-symbols-outlined text-[15px]">shield</span>
                 Défis Résolus
               </span>
-              <p className="font-body text-xs text-[#b9cacb] leading-relaxed">
+              <p className="font-body text-xs text-slate-300 leading-relaxed">
                 Hydratation sans drift (0-drift), invalidation du cache distribué sous 20ms via tags, et garantie d'un Time To First Byte (TTFB) de 45ms sur 140 POPs Edge mondiaux.
               </p>
-              <div className="mt-1 font-mono text-[11px] text-[#dcb8ff] bg-purple-950/50 p-2 rounded border border-purple-500/30">
+              <div className="mt-1 font-mono text-[11px] text-violet-300 bg-violet-950/40 p-2 rounded border border-violet-400/25">
                 TAGS PURGE • ZERO WATERFALL
               </div>
             </div>
 
-            {/* Col 3: Impact */}
-            <div className="flex flex-col gap-2 bg-slate-950/70 p-4 rounded-xl border border-cyan-500/20">
+            <div className="flex flex-col gap-2 bg-[#0f1626] p-4 rounded-xl border border-slate-400/15">
               <span className="font-mono text-xs text-emerald-400 uppercase font-semibold flex items-center gap-1.5">
                 <span className="material-symbols-outlined text-[15px]">trending_up</span>
                 Mesures d'Impact
               </span>
-              <div className="flex flex-col gap-2">
+              <div className="flex flex-col gap-2 tabular-nums">
                 <div>
-                  <span className="font-['Space_Grotesk'] text-3xl font-bold text-[#00f2fe]">
+                  <span className="font-display text-3xl font-bold text-sky-400">
                     +340%
                   </span>
-                  <span className="font-body text-xs text-[#849495] block">
+                  <span className="font-body text-xs text-slate-400 block">
                     Conversions checkout mondial
                   </span>
                 </div>
-                <div className="flex items-center justify-between text-[#e1e2ee] font-mono text-xs py-1 border-t border-cyan-500/20">
-                  <span className="text-[#849495]">TTFB Moyen</span>
-                  <span className="text-[#00f2fe] font-bold">45 ms</span>
+                <div className="flex items-center justify-between text-slate-200 font-mono text-xs py-1 border-t border-slate-400/15">
+                  <span className="text-slate-400">TTFB Moyen</span>
+                  <span className="text-sky-400 font-bold">45 ms</span>
                 </div>
-                <div className="flex items-center justify-between text-[#e1e2ee] font-mono text-xs py-1 border-t border-cyan-500/20">
-                  <span className="text-[#849495]">Lighthouse Score</span>
+                <div className="flex items-center justify-between text-slate-200 font-mono text-xs py-1 border-t border-slate-400/15">
+                  <span className="text-slate-400">Lighthouse Score</span>
                   <span className="text-emerald-400 font-bold">100 / 100</span>
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mt-6 pt-4 border-t border-cyan-500/25">
-            <span className="font-mono text-xs text-[#849495]">
-              ORBITAL ID: NX-9021 • HULL INTEGRITY VERIFIED
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mt-6 pt-4 border-t border-slate-400/15">
+            <span className="font-mono text-xs text-slate-400 tabular-nums">
+              ORBITAL ID: NX-9021 • INTEGRITY VERIFIED
             </span>
             <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
               <a
                 href="https://github.com/vercel/next.js"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-[#00f2fe] text-[#002022] font-mono text-xs uppercase font-bold tracking-wider hover:opacity-90 transition-opacity shadow-[0_0_12px_rgba(0,242,254,0.4)] cursor-pointer w-full sm:w-auto min-h-[44px]"
+                className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-sky-400 hover:bg-sky-300 text-[#050810] font-mono text-xs uppercase font-bold tracking-wider transition-colors cursor-pointer w-full sm:w-auto min-h-[44px]"
               >
                 <span className="material-symbols-outlined text-[16px]">terminal</span>
                 Explorer le Code Source
@@ -371,19 +480,19 @@ export const CockpitModals: React.FC<CockpitModalsProps> = ({
 
       {/* 3. DYNAMIC PROJECT REGISTRATION MODAL ("NOUVEAU PROJET") */}
       {activeModal === 'modal-add-project' && (
-        <div className="w-full max-w-2xl max-h-[90vh] sm:max-h-[85vh] overflow-y-auto bg-slate-950/95 backdrop-blur-2xl border border-cyan-500/50 rounded-2xl p-4 sm:p-6 md:p-8 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
-          <div className="flex items-start justify-between pb-4 border-b border-cyan-500/20">
+        <div className="w-full max-w-2xl max-h-[90vh] sm:max-h-[85vh] overflow-y-auto bg-[#090e1a] border border-sky-400/35 rounded-2xl p-4 sm:p-6 md:p-8 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+          <div className="flex items-start justify-between pb-4 border-b border-slate-400/15">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-cyan-500/20 flex items-center justify-center border border-cyan-400/40">
-                <span className="material-symbols-outlined text-[#00f2fe] text-[22px]">
+              <div className="w-10 h-10 rounded-xl bg-sky-400/15 flex items-center justify-center border border-sky-400/35">
+                <span className="material-symbols-outlined text-sky-400 text-[22px]">
                   {isAuthenticated ? 'add_task' : 'lock'}
                 </span>
               </div>
               <div className="flex flex-col">
-                <span className="font-mono text-xs text-[#00f2fe] uppercase font-semibold">
-                  {isAuthenticated ? 'Dashboard Ingénieur // Registre Orbital' : 'Système de Sécurité // Accès Restreint'}
+                <span className="font-mono text-xs text-sky-400 uppercase font-semibold">
+                  {isAuthenticated ? 'Dashboard Ingénieur • Registre Orbital' : 'Système de Sécurité • Accès Restreint'}
                 </span>
-                <h3 className="font-['Space_Grotesk'] text-xl font-bold text-[#e1e2ee]">
+                <h3 className="font-display text-xl font-bold text-slate-100">
                   {isAuthenticated ? 'Ajouter un Nouveau Projet Stellaire' : 'Authentification Requise pour Ajouter un Projet'}
                 </h3>
               </div>
@@ -391,16 +500,16 @@ export const CockpitModals: React.FC<CockpitModalsProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="w-8 h-8 rounded-lg hover:bg-[#272a33] flex items-center justify-center text-[#849495] hover:text-[#fff] transition-colors cursor-pointer"
+              className="w-8 h-8 rounded-lg hover:bg-[#141f35] flex items-center justify-center text-slate-400 hover:text-slate-100 transition-colors cursor-pointer"
+              aria-label="Fermer la fenêtre"
             >
               <span className="material-symbols-outlined text-[20px]">close</span>
             </button>
           </div>
 
           {!isAuthenticated ? (
-            /* STEP 1: AUTHENTICATION GATE */
             <div className="flex flex-col gap-5 mt-6">
-              <div className="flex items-start gap-3 bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 text-amber-200">
+              <div className="flex items-start gap-3 bg-amber-500/10 border border-amber-500/25 rounded-xl p-4 text-amber-200">
                 <span className="material-symbols-outlined text-amber-400 text-[24px] mt-0.5">
                   admin_panel_settings
                 </span>
@@ -409,7 +518,7 @@ export const CockpitModals: React.FC<CockpitModalsProps> = ({
                     Habilitation d'Officier Niveau 4 Obligatoire
                   </span>
                   <p className="text-amber-200/90 leading-relaxed font-body">
-                    L'ajout et la validation d'un nouveau projet dans la cartographie d'Odyssée requièrent une identification certifiée d'officier de bord.
+                    L'ajout et la validation d'un nouveau projet dans la cartographie d'Odyssée requièrent une identification certifiée d'officier de bord (Code : <code className="text-amber-300">ODYSSEY-2026</code> ou Connexion Démo).
                   </p>
                 </div>
               </div>
@@ -423,40 +532,41 @@ export const CockpitModals: React.FC<CockpitModalsProps> = ({
 
               <form onSubmit={handleAuthSubmit} className="flex flex-col gap-4">
                 <div className="flex flex-col gap-1.5">
-                  <label className="font-mono text-xs text-[#b9cacb] uppercase">
+                  <label className="font-mono text-xs text-slate-300 uppercase">
                     Identifiant / Email d'Officier
                   </label>
                   <input
                     type="email"
                     required
+                    maxLength={120}
                     value={authEmail}
                     onChange={(e) => setAuthEmail(e.target.value)}
                     placeholder="alexandre.vance@odyssey-core.space"
-                    className="bg-[#191b24] border border-[#3a494b]/60 rounded-lg px-3 py-2 text-sm text-[#e1e2ee] font-mono focus:border-[#00f2fe] focus:outline-none"
+                    className="bg-[#0f1626] border border-slate-400/20 rounded-lg px-3 py-2 text-sm text-slate-100 font-mono focus:border-sky-400 focus:outline-none"
                   />
                 </div>
 
                 <div className="flex flex-col gap-1.5">
-                  <label className="font-mono text-xs text-[#b9cacb] uppercase">
-                    Code d'Habilitation Orbitale / Passcode
+                  <label className="font-mono text-xs text-slate-300 uppercase">
+                    Code d'Habilitation Orbitale
                   </label>
                   <input
                     type="password"
                     required
+                    maxLength={64}
                     value={authPasscode}
                     onChange={(e) => setAuthPasscode(e.target.value)}
-                    placeholder="••••••••••••"
-                    className="bg-[#191b24] border border-[#3a494b]/60 rounded-lg px-3 py-2 text-sm text-[#e1e2ee] font-mono focus:border-[#00f2fe] focus:outline-none"
+                    placeholder="Code d'accès (ex: ODYSSEY-2026)"
+                    className="bg-[#0f1626] border border-slate-400/20 rounded-lg px-3 py-2 text-sm text-slate-100 font-mono focus:border-sky-400 focus:outline-none"
                   />
                 </div>
 
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-[#32343e] mt-2">
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-slate-400/15 mt-2">
                   <button
                     type="button"
                     onClick={handleInstantAuth}
                     disabled={authLoading}
-                    className="w-full sm:w-auto px-3.5 py-2 rounded-lg bg-[#272a33] hover:bg-[#363943] text-cyan-400 border border-cyan-500/30 font-mono text-xs uppercase flex items-center justify-center gap-1.5 cursor-pointer transition-all"
-                    title="Connexion 1-clic pour tester directement"
+                    className="w-full sm:w-auto px-3.5 py-2 rounded-lg bg-[#121a2b] hover:bg-[#1a253d] text-sky-400 border border-sky-400/30 font-mono text-xs uppercase flex items-center justify-center gap-1.5 cursor-pointer transition-all"
                   >
                     <span className="material-symbols-outlined text-[16px]">bolt</span>
                     Connexion Démo (Cmdr. Vance)
@@ -466,14 +576,14 @@ export const CockpitModals: React.FC<CockpitModalsProps> = ({
                     <button
                       type="button"
                       onClick={onClose}
-                      className="w-1/2 sm:w-auto px-4 py-2 rounded-lg bg-[#1d1f28] text-[#849495] hover:text-[#e1e2ee] font-mono text-xs uppercase cursor-pointer"
+                      className="w-1/2 sm:w-auto px-4 py-2 rounded-lg bg-[#101726] text-slate-400 hover:text-slate-100 font-mono text-xs uppercase cursor-pointer"
                     >
                       Annuler
                     </button>
                     <button
                       type="submit"
                       disabled={authLoading}
-                      className="w-1/2 sm:w-auto px-5 py-2 rounded-lg bg-[#00f2fe] hover:bg-[#00dce6] text-[#002022] font-mono text-xs uppercase font-bold transition-all shadow-[0_0_12px_rgba(0,242,254,0.4)] flex items-center justify-center gap-1.5 cursor-pointer"
+                      className="w-1/2 sm:w-auto px-5 py-2 rounded-lg bg-sky-400 hover:bg-sky-300 text-[#050810] font-mono text-xs uppercase font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                     >
                       {authLoading ? (
                         <>
@@ -492,17 +602,15 @@ export const CockpitModals: React.FC<CockpitModalsProps> = ({
               </form>
             </div>
           ) : (
-            /* STEP 2: UNLOCKED PROJECT FORM */
             <div className="flex flex-col gap-4 mt-6">
-              {/* Authenticated Officer Header Banner */}
               <div className="flex items-center justify-between bg-emerald-500/10 border border-emerald-500/30 rounded-xl px-4 py-2.5">
                 <div className="flex items-center gap-2.5">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <span className="w-2 h-2 rounded-full bg-emerald-400" />
                   <div className="flex flex-col">
                     <span className="font-mono text-xs font-bold text-emerald-300">
                       ✓ HABILITATION NIVEAU 4 ACTIVE : {officerUser?.name} ({officerUser?.callsign})
                     </span>
-                    <span className="font-mono text-[11px] text-emerald-400/70">
+                    <span className="font-mono text-[11px] text-emerald-400/75">
                       Compte : {officerUser?.email}
                     </span>
                   </div>
@@ -519,27 +627,28 @@ export const CockpitModals: React.FC<CockpitModalsProps> = ({
               <form onSubmit={handleFormSubmit} className="flex flex-col gap-4 mt-2">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="flex flex-col gap-1.5">
-                    <label className="font-mono text-xs text-[#b9cacb] uppercase">
+                    <label className="font-mono text-xs text-slate-300 uppercase">
                       Titre du Projet
                     </label>
                     <input
                       type="text"
                       required
+                      maxLength={80}
                       placeholder="ex: Hyperdrive Real-time Mesh"
                       value={formData.title}
                       onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                      className="bg-[#191b24] border border-[#3a494b]/60 rounded-lg px-3 py-2 text-sm text-[#e1e2ee] font-body focus:border-[#00f2fe] focus:outline-none"
+                      className="bg-[#0f1626] border border-slate-400/20 rounded-lg px-3 py-2 text-sm text-slate-100 font-body focus:border-sky-400 focus:outline-none"
                     />
                   </div>
 
                   <div className="flex flex-col gap-1.5">
-                    <label className="font-mono text-xs text-[#b9cacb] uppercase">
+                    <label className="font-mono text-xs text-slate-300 uppercase">
                       Type de Corps Céleste
                     </label>
                     <select
                       value={formData.type}
                       onChange={(e) => setFormData({ ...formData, type: e.target.value as CelestialType })}
-                      className="bg-[#191b24] border border-[#3a494b]/60 rounded-lg px-3 py-2 text-sm text-[#e1e2ee] font-body focus:border-[#00f2fe] focus:outline-none"
+                      className="bg-[#0f1626] border border-slate-400/20 rounded-lg px-3 py-2 text-sm text-slate-100 font-body focus:border-sky-400 focus:outline-none"
                     >
                       <option value="planet">Planète (Étude de Cas Majeure)</option>
                       <option value="asteroid">Astéroïde (Contribution Open Source)</option>
@@ -551,48 +660,51 @@ export const CockpitModals: React.FC<CockpitModalsProps> = ({
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="flex flex-col gap-1.5">
-                    <label className="font-mono text-xs text-[#b9cacb] uppercase">
+                    <label className="font-mono text-xs text-slate-300 uppercase">
                       Pile Technique (Stack)
                     </label>
                     <input
                       type="text"
                       required
+                      maxLength={100}
                       placeholder="ex: Next.js 15, Turbopack, Rust"
                       value={formData.stack}
                       onChange={(e) => setFormData({ ...formData, stack: e.target.value })}
-                      className="bg-[#191b24] border border-[#3a494b]/60 rounded-lg px-3 py-2 text-sm text-[#e1e2ee] font-body focus:border-[#00f2fe] focus:outline-none"
+                      className="bg-[#0f1626] border border-slate-400/20 rounded-lg px-3 py-2 text-sm text-slate-100 font-body focus:border-sky-400 focus:outline-none"
                     />
                   </div>
 
                   <div className="flex flex-col gap-1.5">
-                    <label className="font-mono text-xs text-[#b9cacb] uppercase">
-                      GitHub URL / Repository
+                    <label className="font-mono text-xs text-slate-300 uppercase">
+                      GitHub URL / Repository (HTTPS)
                     </label>
                     <input
                       type="url"
+                      maxLength={200}
                       placeholder="https://github.com/votre-compte/repo"
                       value={formData.url}
                       onChange={(e) => setFormData({ ...formData, url: e.target.value })}
-                      className="bg-[#191b24] border border-[#3a494b]/60 rounded-lg px-3 py-2 text-sm text-[#e1e2ee] font-body focus:border-[#00f2fe] focus:outline-none"
+                      className="bg-[#0f1626] border border-slate-400/20 rounded-lg px-3 py-2 text-sm text-slate-100 font-body focus:border-sky-400 focus:outline-none"
                     />
                   </div>
                 </div>
 
                 <div className="flex flex-col gap-1.5">
-                  <label className="font-mono text-xs text-[#b9cacb] uppercase">
+                  <label className="font-mono text-xs text-slate-300 uppercase">
                     Métriques Clés & Description
                   </label>
                   <textarea
                     required
                     rows={3}
+                    maxLength={280}
                     placeholder="ex: Invalidation cache < 10ms, débit +450%, résilience 99.999%."
                     value={formData.desc}
                     onChange={(e) => setFormData({ ...formData, desc: e.target.value })}
-                    className="bg-[#191b24] border border-[#3a494b]/60 rounded-lg px-3 py-2 text-sm text-[#e1e2ee] font-body focus:border-[#00f2fe] focus:outline-none resize-none"
+                    className="bg-[#0f1626] border border-slate-400/20 rounded-lg px-3 py-2 text-sm text-slate-100 font-body focus:border-sky-400 focus:outline-none resize-none"
                   />
                 </div>
 
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-3 border-t border-[#32343e] mt-2">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-3 border-t border-slate-400/15 mt-2">
                   <span className="font-mono text-xs text-emerald-400 text-center sm:text-left">
                     {formStatus === 'syncing'
                       ? 'SYNCHRONISATION AU REGISTRE ORBITAL...'
@@ -604,14 +716,14 @@ export const CockpitModals: React.FC<CockpitModalsProps> = ({
                     <button
                       type="button"
                       onClick={onClose}
-                      className="px-4 py-2.5 rounded-lg bg-[#272a33] text-[#e1e2ee] font-mono text-xs uppercase cursor-pointer min-h-[44px]"
+                      className="px-4 py-2.5 rounded-lg bg-[#121a2b] text-slate-200 font-mono text-xs uppercase cursor-pointer min-h-[44px]"
                     >
                       Annuler
                     </button>
                     <button
                       type="submit"
                       disabled={formStatus === 'syncing'}
-                      className="px-5 py-2.5 rounded-lg bg-[#00f2fe] hover:bg-[#00dce6] text-[#002022] font-mono text-xs uppercase font-bold transition-all shadow-[0_0_12px_rgba(0,242,254,0.4)] cursor-pointer min-h-[44px]"
+                      className="px-5 py-2.5 rounded-lg bg-sky-400 hover:bg-sky-300 text-[#050810] font-mono text-xs uppercase font-bold transition-all cursor-pointer min-h-[44px]"
                     >
                       Valider & Déployer en Orbite ↗
                     </button>
@@ -625,19 +737,19 @@ export const CockpitModals: React.FC<CockpitModalsProps> = ({
 
       {/* 3B. DEDICATED AUTHENTICATION MODAL ("AUTHENTIFICATION") */}
       {activeModal === 'modal-auth' && (
-        <div className="w-full max-w-md max-h-[90vh] sm:max-h-[85vh] overflow-y-auto bg-slate-950/95 backdrop-blur-2xl border border-cyan-500/50 rounded-2xl p-4 sm:p-6 md:p-8 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
-          <div className="flex items-start justify-between pb-4 border-b border-cyan-500/20 gap-2">
+        <div className="w-full max-w-md max-h-[90vh] sm:max-h-[85vh] overflow-y-auto bg-[#090e1a] border border-sky-400/35 rounded-2xl p-4 sm:p-6 md:p-8 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+          <div className="flex items-start justify-between pb-4 border-b border-slate-400/15 gap-2">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-cyan-500/20 flex items-center justify-center border border-cyan-400/40 shrink-0">
-                <span className="material-symbols-outlined text-[#00f2fe] text-[22px]">
+              <div className="w-10 h-10 rounded-xl bg-sky-400/15 flex items-center justify-center border border-sky-400/35 shrink-0">
+                <span className="material-symbols-outlined text-sky-400 text-[22px]">
                   security
                 </span>
               </div>
               <div className="flex flex-col">
-                <span className="font-mono text-[10px] sm:text-xs text-[#00f2fe] uppercase font-semibold">
+                <span className="font-mono text-[10px] sm:text-xs text-sky-400 uppercase font-semibold">
                   Système de Sécurité
                 </span>
-                <h3 className="font-['Space_Grotesk'] text-lg sm:text-xl font-bold text-[#e1e2ee]">
+                <h3 className="font-display text-lg sm:text-xl font-bold text-slate-100">
                   {isAuthenticated ? 'Session Officier Active' : 'Authentification de Bord'}
                 </h3>
               </div>
@@ -645,7 +757,7 @@ export const CockpitModals: React.FC<CockpitModalsProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="w-9 h-9 sm:w-8 sm:h-8 rounded-lg hover:bg-[#272a33] flex items-center justify-center text-[#849495] hover:text-[#fff] transition-colors cursor-pointer shrink-0"
+              className="w-9 h-9 sm:w-8 sm:h-8 rounded-lg hover:bg-[#141f35] flex items-center justify-center text-slate-400 hover:text-slate-100 transition-colors cursor-pointer shrink-0"
               aria-label="Fermer la fenêtre"
             >
               <span className="material-symbols-outlined text-[20px]">close</span>
@@ -656,31 +768,31 @@ export const CockpitModals: React.FC<CockpitModalsProps> = ({
             <div className="flex flex-col gap-4 mt-6">
               <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-4 flex flex-col gap-2">
                 <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <span className="w-2 h-2 rounded-full bg-emerald-400" />
                   <span className="font-mono text-xs font-bold text-emerald-300 uppercase">
                     Accréditation Niveau {officerUser.clearanceLevel} Validée
                   </span>
                 </div>
-                <div className="flex flex-col font-mono text-xs text-[#e1e2ee] gap-1">
-                  <div><span className="text-[#849495]">Officier :</span> {officerUser.name}</div>
-                  <div><span className="text-[#849495]">Rang :</span> {officerUser.rank}</div>
-                  <div><span className="text-[#849495]">Callsign :</span> {officerUser.callsign}</div>
-                  <div><span className="text-[#849495]">Email :</span> {officerUser.email}</div>
+                <div className="flex flex-col font-mono text-xs text-slate-200 gap-1">
+                  <div><span className="text-slate-400">Officier :</span> {officerUser.name}</div>
+                  <div><span className="text-slate-400">Rang :</span> {officerUser.rank}</div>
+                  <div><span className="text-slate-400">Callsign :</span> {officerUser.callsign}</div>
+                  <div><span className="text-slate-400">Email :</span> {officerUser.email}</div>
                 </div>
               </div>
 
-              <div className="flex items-center justify-between pt-3 border-t border-[#32343e] gap-3">
+              <div className="flex items-center justify-between pt-3 border-t border-slate-400/15 gap-3">
                 <button
                   type="button"
                   onClick={onLogout}
-                  className="px-4 py-2.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/40 font-mono text-xs uppercase cursor-pointer transition-all min-h-[44px]"
+                  className="px-4 py-2.5 rounded-lg bg-red-500/15 hover:bg-red-500/25 text-red-300 border border-red-500/35 font-mono text-xs uppercase cursor-pointer transition-all min-h-[44px]"
                 >
                   Se Déconnecter
                 </button>
                 <button
                   type="button"
                   onClick={onClose}
-                  className="px-4 py-2.5 rounded-lg bg-[#00f2fe] text-[#002022] font-mono text-xs uppercase font-bold cursor-pointer min-h-[44px]"
+                  className="px-4 py-2.5 rounded-lg bg-sky-400 hover:bg-sky-300 text-[#050810] font-mono text-xs uppercase font-bold cursor-pointer min-h-[44px]"
                 >
                   Fermer
                 </button>
@@ -688,8 +800,8 @@ export const CockpitModals: React.FC<CockpitModalsProps> = ({
             </div>
           ) : (
             <div className="flex flex-col gap-4 mt-6">
-              <p className="text-xs text-[#849495] leading-relaxed">
-                Connectez-vous pour déverrouiller la validation et le déploiement de nouveaux projets orbitaux.
+              <p className="text-xs text-slate-400 leading-relaxed font-body">
+                Connectez-vous pour déverrouiller la validation et le déploiement de nouveaux projets orbitaux (Code d'accès : <code className="text-sky-400 font-mono">ODYSSEY-2026</code>).
               </p>
 
               {authError && (
@@ -700,43 +812,46 @@ export const CockpitModals: React.FC<CockpitModalsProps> = ({
 
               <form onSubmit={handleAuthSubmit} className="flex flex-col gap-4">
                 <div className="flex flex-col gap-1.5">
-                  <label className="font-mono text-xs text-[#b9cacb] uppercase">
+                  <label className="font-mono text-xs text-slate-300 uppercase">
                     Identifiant / Email
                   </label>
                   <input
                     type="email"
                     required
+                    maxLength={120}
                     value={authEmail}
                     onChange={(e) => setAuthEmail(e.target.value)}
-                    className="bg-[#191b24] border border-[#3a494b]/60 rounded-lg px-3 py-2.5 text-base sm:text-sm text-[#e1e2ee] font-mono focus:border-[#00f2fe] focus:outline-none min-h-[44px]"
+                    className="bg-[#0f1626] border border-slate-400/20 rounded-lg px-3 py-2.5 text-base sm:text-sm text-slate-100 font-mono focus:border-sky-400 focus:outline-none min-h-[44px]"
                   />
                 </div>
 
                 <div className="flex flex-col gap-1.5">
-                  <label className="font-mono text-xs text-[#b9cacb] uppercase">
+                  <label className="font-mono text-xs text-slate-300 uppercase">
                     Code d'Habilitation
                   </label>
                   <input
                     type="password"
                     required
+                    maxLength={64}
                     value={authPasscode}
                     onChange={(e) => setAuthPasscode(e.target.value)}
-                    className="bg-[#191b24] border border-[#3a494b]/60 rounded-lg px-3 py-2.5 text-base sm:text-sm text-[#e1e2ee] font-mono focus:border-[#00f2fe] focus:outline-none min-h-[44px]"
+                    placeholder="ODYSSEY-2026"
+                    className="bg-[#0f1626] border border-slate-400/20 rounded-lg px-3 py-2.5 text-base sm:text-sm text-slate-100 font-mono focus:border-sky-400 focus:outline-none min-h-[44px]"
                   />
                 </div>
 
-                <div className="flex flex-col gap-2 pt-2 border-t border-[#32343e]">
+                <div className="flex flex-col gap-2 pt-2 border-t border-slate-400/15">
                   <button
                     type="submit"
                     disabled={authLoading}
-                    className="w-full py-2.5 rounded-lg bg-[#00f2fe] text-[#002022] font-mono text-xs uppercase font-bold cursor-pointer shadow-[0_0_12px_rgba(0,242,254,0.4)] min-h-[44px]"
+                    className="w-full py-2.5 rounded-lg bg-sky-400 hover:bg-sky-300 text-[#050810] font-mono text-xs uppercase font-bold cursor-pointer min-h-[44px]"
                   >
                     {authLoading ? 'Authentification...' : 'Valider'}
                   </button>
                   <button
                     type="button"
                     onClick={handleInstantAuth}
-                    className="w-full py-2.5 rounded-lg bg-[#272a33] hover:bg-[#363943] text-cyan-400 font-mono text-xs uppercase border border-cyan-500/30 cursor-pointer min-h-[44px]"
+                    className="w-full py-2.5 rounded-lg bg-[#121a2b] hover:bg-[#1a253d] text-sky-400 font-mono text-xs uppercase border border-sky-400/30 cursor-pointer min-h-[44px]"
                   >
                     Connexion Démo Immédiate
                   </button>
@@ -749,27 +864,27 @@ export const CockpitModals: React.FC<CockpitModalsProps> = ({
 
       {/* 4. ASTEROID BELT INSPECTOR MODAL */}
       {activeModal === 'modal-asteroids' && (
-        <div className="w-full max-w-4xl max-h-[90vh] sm:max-h-[85vh] overflow-y-auto bg-[#0b0e16]/95 backdrop-blur-2xl rounded-2xl p-4 sm:p-6 md:p-8 shadow-2xl border border-purple-500/40 animate-in fade-in zoom-in-95 duration-200">
-          <div className="flex items-start justify-between pb-4 border-b border-purple-500/25 gap-2">
+        <div className="w-full max-w-4xl max-h-[90vh] sm:max-h-[85vh] overflow-y-auto bg-[#090e1a] rounded-2xl p-4 sm:p-6 md:p-8 shadow-2xl border border-violet-400/35 animate-in fade-in zoom-in-95 duration-200">
+          <div className="flex items-start justify-between pb-4 border-b border-slate-400/15 gap-2">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-purple-500/20 flex items-center justify-center border border-purple-400/40 shadow-[0_0_12px_rgba(168,85,247,0.3)] shrink-0">
-                <span className="material-symbols-outlined text-[#dcb8ff] text-[24px] sm:text-[26px]">
+              <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-violet-500/15 flex items-center justify-center border border-violet-400/35 shrink-0">
+                <span className="material-symbols-outlined text-violet-300 text-[24px] sm:text-[26px]">
                   hub
                 </span>
               </div>
               <div className="flex flex-col">
-                <span className="font-mono text-[10px] sm:text-xs text-[#dcb8ff] uppercase font-semibold">
-                  Ceinture d'Astéroïdes // Écosystème Open Source (5.82 AU)
+                <span className="font-mono text-[10px] sm:text-xs text-violet-300 uppercase font-semibold tabular-nums">
+                  Ceinture Principale • Écosystème Open Source (5.82 AU)
                 </span>
-                <h2 className="font-['Space_Grotesk'] text-lg sm:text-2xl font-bold text-[#e1e2ee]">
-                  Contributions, RFCs & Astéroïdes
+                <h2 className="font-display text-lg sm:text-2xl font-bold text-slate-100">
+                  Contributions, RFCs & Astéroïdes S/C-Type
                 </h2>
               </div>
             </div>
             <button
               type="button"
               onClick={onClose}
-              className="w-9 h-9 sm:w-8 sm:h-8 rounded-lg hover:bg-[#272a33] flex items-center justify-center text-[#849495] hover:text-[#fff] transition-colors cursor-pointer shrink-0"
+              className="w-9 h-9 sm:w-8 sm:h-8 rounded-lg hover:bg-[#141f35] flex items-center justify-center text-slate-400 hover:text-slate-100 transition-colors cursor-pointer shrink-0"
               aria-label="Fermer la fenêtre"
             >
               <span className="material-symbols-outlined text-[20px]">close</span>
@@ -780,27 +895,27 @@ export const CockpitModals: React.FC<CockpitModalsProps> = ({
             {projects.map((proj) => (
               <a
                 key={proj.id}
-                href={proj.url}
+                href={sanitizeExternalUrl(proj.url)}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="bg-[#191b24]/80 hover:bg-[#1d1f28] p-4 rounded-xl border border-purple-500/20 hover:border-purple-400 flex flex-col gap-1.5 transition-all group shadow-md"
+                className="bg-[#0f1626] hover:bg-[#141e33] p-4 rounded-xl border border-slate-400/15 hover:border-violet-400/45 flex flex-col gap-1.5 transition-all group"
               >
                 <div className="flex items-center justify-between">
-                  <span className="font-mono text-xs font-bold text-purple-300 group-hover:text-[#00f2fe] transition-colors">
+                  <span className="font-mono text-xs font-bold text-violet-300 group-hover:text-sky-400 transition-colors">
                     {proj.name}
                   </span>
-                  <span className="font-mono text-[10px] text-[#00f2fe] bg-[#272a33] px-2 py-0.5 rounded border border-[#00f2fe]/20">
+                  <span className="font-mono text-[10px] text-sky-400 bg-[#141d31] px-2 py-0.5 rounded border border-sky-400/20 tabular-nums">
                     {proj.stars}
                   </span>
                 </div>
-                <span className="font-mono text-xs text-[#dcb8ff] font-semibold">
+                <span className="font-mono text-xs text-slate-200 font-semibold">
                   {proj.pr}
                 </span>
-                <p className="font-body text-xs text-[#b9cacb] line-clamp-2">
+                <p className="font-body text-xs text-slate-300 line-clamp-2">
                   {proj.desc}
                 </p>
                 {proj.stack && (
-                  <span className="font-mono text-[10px] text-[#849495] mt-auto pt-2 border-t border-[#32343e]/50">
+                  <span className="font-mono text-[10px] text-slate-400 mt-auto pt-2 border-t border-slate-400/10">
                     {proj.stack}
                   </span>
                 )}
@@ -808,15 +923,15 @@ export const CockpitModals: React.FC<CockpitModalsProps> = ({
             ))}
           </div>
 
-          <div className="mt-6 flex items-center justify-between pt-4 border-t border-purple-500/25">
-            <span className="font-mono text-xs text-[#849495]">
-              ORBITAL ASTEROIDS: {projects.length} DÉTECTÉS • SURVOL ET CLIC 3D ACTIFS
+          <div className="mt-6 flex items-center justify-between pt-4 border-t border-slate-400/15">
+            <span className="font-mono text-xs text-slate-400 tabular-nums">
+              ORBITAL ASTEROIDS: {projects.length} DÉTECTÉS • SURVOL ET CLIC ACTIFS
             </span>
             <a
               href="https://github.com"
               target="_blank"
               rel="noopener noreferrer"
-              className="px-4 py-2 bg-[#272a33] hover:bg-[#363943] text-[#e1e2ee] rounded-lg font-mono text-xs uppercase inline-flex items-center gap-1.5 border border-[#3a494b]/40 cursor-pointer"
+              className="px-4 py-2 bg-[#121a2b] hover:bg-[#1a253d] text-slate-100 rounded-lg font-mono text-xs uppercase inline-flex items-center gap-1.5 border border-slate-400/20 cursor-pointer"
             >
               <span className="material-symbols-outlined text-[16px]">open_in_new</span>
               Profil GitHub Orbital ↗
@@ -827,19 +942,19 @@ export const CockpitModals: React.FC<CockpitModalsProps> = ({
 
       {/* 5. STATION DEVOPS TELEMETRY TERMINAL */}
       {activeModal === 'modal-station' && (
-        <div className="w-full max-w-4xl max-h-[90vh] sm:max-h-[85vh] overflow-y-auto bg-[#0b0e16]/95 backdrop-blur-2xl rounded-2xl p-4 sm:p-6 md:p-8 shadow-2xl border border-emerald-500/40 animate-in fade-in zoom-in-95 duration-200">
-          <div className="flex items-start justify-between pb-4 border-b border-emerald-500/25 gap-2">
+        <div className="w-full max-w-4xl max-h-[90vh] sm:max-h-[85vh] overflow-y-auto bg-[#090e1a] rounded-2xl p-4 sm:p-6 md:p-8 shadow-2xl border border-emerald-400/35 animate-in fade-in zoom-in-95 duration-200">
+          <div className="flex items-start justify-between pb-4 border-b border-slate-400/15 gap-2">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-emerald-500/20 flex items-center justify-center border border-emerald-400/40 shadow-[0_0_12px_rgba(16,185,129,0.3)] shrink-0">
+              <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-emerald-500/15 flex items-center justify-center border border-emerald-400/35 shrink-0">
                 <span className="material-symbols-outlined text-emerald-400 text-[24px] sm:text-[26px]">
                   dns
                 </span>
               </div>
               <div className="flex flex-col">
-                <span className="font-mono text-[10px] sm:text-xs text-emerald-400 uppercase font-semibold">
-                  Station Orbitale DevOps // Haute Disponibilité (8.41 AU)
+                <span className="font-mono text-[10px] sm:text-xs text-emerald-400 uppercase font-semibold tabular-nums">
+                  Station Orbitale DevOps • Haute Disponibilité (8.41 AU)
                 </span>
-                <h2 className="font-['Space_Grotesk'] text-lg sm:text-2xl font-bold text-[#e1e2ee]">
+                <h2 className="font-display text-lg sm:text-2xl font-bold text-slate-100">
                   Infrastructure Multi-Cloud & Télémétrie en Direct
                 </h2>
               </div>
@@ -847,7 +962,7 @@ export const CockpitModals: React.FC<CockpitModalsProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="w-9 h-9 sm:w-8 sm:h-8 rounded-lg hover:bg-[#272a33] flex items-center justify-center text-[#849495] hover:text-[#fff] transition-colors cursor-pointer shrink-0"
+              className="w-9 h-9 sm:w-8 sm:h-8 rounded-lg hover:bg-[#141f35] flex items-center justify-center text-slate-400 hover:text-slate-100 transition-colors cursor-pointer shrink-0"
               aria-label="Fermer la fenêtre"
             >
               <span className="material-symbols-outlined text-[20px]">close</span>
@@ -855,122 +970,119 @@ export const CockpitModals: React.FC<CockpitModalsProps> = ({
           </div>
 
           {/* 3 Cloud pillars */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
-            {/* Docker */}
-            <div className="bg-[#191b24] p-4 rounded-xl border border-sky-500/30 flex flex-col gap-2">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6 tabular-nums">
+            <div className="bg-[#0f1626] p-4 rounded-xl border border-sky-400/25 flex flex-col gap-2">
               <div className="flex items-center justify-between">
                 <span className="font-mono text-xs font-bold text-sky-400 flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-sky-400 animate-pulse" />
+                  <span className="w-2 h-2 rounded-full bg-sky-400" />
                   DOCKER ENGINE
                 </span>
-                <span className="font-mono text-[10px] text-[#849495] bg-[#272a33] px-2 py-0.5 rounded">
+                <span className="font-mono text-[10px] text-slate-400 bg-[#141d31] px-2 py-0.5 rounded">
                   v26.1
                 </span>
               </div>
               <div className="flex flex-col gap-1 font-mono text-xs mt-1">
-                <div className="flex justify-between text-[#849495]">
+                <div className="flex justify-between text-slate-400">
                   <span>Conteneurs actifs :</span>
                   <span className="text-sky-300 font-bold">64 / 64</span>
                 </div>
-                <div className="flex justify-between text-[#849495]">
+                <div className="flex justify-between text-slate-400">
                   <span>RAM allouée :</span>
                   <span className="text-sky-300 font-bold">18.4 GB</span>
                 </div>
-                <div className="flex justify-between text-[#849495]">
+                <div className="flex justify-between text-slate-400">
                   <span>Microservices :</span>
                   <span className="text-sky-300 font-bold">12 pods</span>
                 </div>
               </div>
-              <div className="text-[11px] text-[#849495] mt-1 pt-2 border-t border-[#32343e]">
+              <div className="text-[11px] text-slate-400 mt-1 pt-2 border-t border-slate-400/15">
                 Multi-stage Alpine & isolation cgroups v2.
               </div>
             </div>
 
-            {/* AWS */}
-            <div className="bg-[#191b24] p-4 rounded-xl border border-amber-500/30 flex flex-col gap-2">
+            <div className="bg-[#0f1626] p-4 rounded-xl border border-amber-400/25 flex flex-col gap-2">
               <div className="flex items-center justify-between">
                 <span className="font-mono text-xs font-bold text-amber-400 flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                  <span className="w-2 h-2 rounded-full bg-amber-400" />
                   AWS CLOUD INFRA
                 </span>
-                <span className="font-mono text-[10px] text-[#849495] bg-[#272a33] px-2 py-0.5 rounded">
+                <span className="font-mono text-[10px] text-slate-400 bg-[#141d31] px-2 py-0.5 rounded">
                   eu-west-3
                 </span>
               </div>
               <div className="flex flex-col gap-1 font-mono text-xs mt-1">
-                <div className="flex justify-between text-[#849495]">
+                <div className="flex justify-between text-slate-400">
                   <span>ECS Fargate :</span>
                   <span className="text-amber-300 font-bold">24 Tasks</span>
                 </div>
-                <div className="flex justify-between text-[#849495]">
+                <div className="flex justify-between text-slate-400">
                   <span>Lambda Exéc./sec :</span>
                   <span className="text-amber-300 font-bold">1,842 req/s</span>
                 </div>
-                <div className="flex justify-between text-[#849495]">
+                <div className="flex justify-between text-slate-400">
                   <span>CloudFront Cache HIT :</span>
                   <span className="text-emerald-400 font-bold">99.42%</span>
                 </div>
               </div>
-              <div className="text-[11px] text-[#849495] mt-1 pt-2 border-t border-[#32343e]">
+              <div className="text-[11px] text-slate-400 mt-1 pt-2 border-t border-slate-400/15">
                 Terraform State verrouillé sur S3 & DynamoDB.
               </div>
             </div>
 
-            {/* GCP */}
-            <div className="bg-[#191b24] p-4 rounded-xl border border-red-500/30 flex flex-col gap-2">
+            <div className="bg-[#0f1626] p-4 rounded-xl border border-rose-400/25 flex flex-col gap-2">
               <div className="flex items-center justify-between">
-                <span className="font-mono text-xs font-bold text-red-400 flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-red-400 animate-pulse" />
+                <span className="font-mono text-xs font-bold text-rose-400 flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-rose-400" />
                   GOOGLE CLOUD (GCP)
                 </span>
-                <span className="font-mono text-[10px] text-[#849495] bg-[#272a33] px-2 py-0.5 rounded">
+                <span className="font-mono text-[10px] text-slate-400 bg-[#141d31] px-2 py-0.5 rounded">
                   europe-west1
                 </span>
               </div>
               <div className="flex flex-col gap-1 font-mono text-xs mt-1">
-                <div className="flex justify-between text-[#849495]">
+                <div className="flex justify-between text-slate-400">
                   <span>Clusters GKE :</span>
-                  <span className="text-red-300 font-bold">Autopilot 3.2</span>
+                  <span className="text-rose-300 font-bold">Autopilot 3.2</span>
                 </div>
-                <div className="flex justify-between text-[#849495]">
+                <div className="flex justify-between text-slate-400">
                   <span>Cloud Run P99 :</span>
                   <span className="text-emerald-400 font-bold">18 ms</span>
                 </div>
-                <div className="flex justify-between text-[#849495]">
+                <div className="flex justify-between text-slate-400">
                   <span>BigQuery Ingress :</span>
-                  <span className="text-red-300 font-bold">4.8 GB/min</span>
+                  <span className="text-rose-300 font-bold">4.8 GB/min</span>
                 </div>
               </div>
-              <div className="text-[11px] text-[#849495] mt-1 pt-2 border-t border-[#32343e]">
+              <div className="text-[11px] text-slate-400 mt-1 pt-2 border-t border-slate-400/15">
                 Istio Service Mesh mTLS & Prometheus Exporter.
               </div>
             </div>
           </div>
 
           {/* Live Cluster Logs Feed */}
-          <div className="bg-[#10131c] p-4 rounded-xl mt-5 font-mono text-xs text-[#b9cacb] flex flex-col gap-1.5 border border-[#32343e]">
-            <div className="flex items-center justify-between text-[#849495] pb-2 border-b border-[#32343e]">
+          <div className="bg-[#060911] p-4 rounded-xl mt-5 font-mono text-xs text-slate-300 flex flex-col gap-1.5 border border-slate-400/15 tabular-nums">
+            <div className="flex items-center justify-between text-slate-400 pb-2 border-b border-slate-400/15">
               <span>CLUSTER STREAM: k8s-mesh-station-eu.odyssey.internal</span>
-              <span className="text-emerald-400 flex items-center gap-1 text-[11px]">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-                LIVE STREAMING 60HZ
+              <span className="text-emerald-400 flex items-center gap-1.5 text-[11px]">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                FLUX 60HZ
               </span>
             </div>
             {logs.map((log) => (
               <div key={log.id} className="leading-relaxed">
-                <span className="text-[#849495]">[{log.timestamp}] </span>
+                <span className="text-slate-500">[{log.timestamp}] </span>
                 <span
                   className={
                     log.type === 'aws'
                       ? 'text-amber-300'
                       : log.type === 'gcp'
-                      ? 'text-red-300'
-                      : 'text-[#00f2fe]'
+                      ? 'text-rose-300'
+                      : 'text-sky-400'
                   }
                 >
                   {log.source}:{' '}
                 </span>
-                <span className="text-[#e1e2ee]">{log.message}</span>
+                <span className="text-slate-200">{log.message}</span>
               </div>
             ))}
           </div>

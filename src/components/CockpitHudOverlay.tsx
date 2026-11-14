@@ -1,5 +1,6 @@
 import React from 'react';
-import { WaypointKey, CelestialTarget } from '../types';
+import { WaypointKey, CelestialTarget, ScanMode } from '../types';
+import { CELESTIAL_TARGETS } from '../data/spaceData';
 
 interface CockpitHudOverlayProps {
   activeWaypoint: WaypointKey;
@@ -12,6 +13,14 @@ interface CockpitHudOverlayProps {
   warpProfile: string;
   freecam: boolean;
   audioActive: boolean;
+  scanMode: ScanMode;
+  navigationMode?: 'free' | 'voyage';
+  viewProjection?: 'planisphere' | 'observatory';
+  hoveredOrbitTarget: CelestialTarget | null;
+  scannerOpen: boolean;
+  onToggleScanner: () => void;
+  onToggleViewProjection?: () => void;
+  onChangeScanMode: (mode: ScanMode) => void;
   onNavigate: (key: WaypointKey) => void;
   onInspectTarget: () => void;
   onCloseTargetPopup: () => void;
@@ -20,6 +29,73 @@ interface CockpitHudOverlayProps {
   onToggleFreecam: () => void;
   onToggleAudio: () => void;
 }
+
+const CHAPTER_METADATA: Record<
+  Exclude<WaypointKey, 'reset'>,
+  {
+    number: string;
+    eyebrow: string;
+    headline: string;
+    summary: string;
+    accentColor: string;
+    stats: { label: string; value: string }[];
+  }
+> = {
+  sun: {
+    number: '00',
+    eyebrow: 'Étoile G2V · 0.00 AU',
+    headline: 'Fondations & Noyau Algorithmique',
+    summary:
+      'Architecture bas-niveau C/C++, structures de données haute performance et modélisation mathématique au cœur du système.',
+    accentColor: '#e5a93c',
+    stats: [
+      { label: 'EXPÉRIENCE', value: '8+ Ans' },
+      { label: 'COMMITS', value: '4,920+' },
+      { label: 'PHOTOSPHÈRE', value: '5,778 K' },
+    ],
+  },
+  nextjs: {
+    number: '01',
+    eyebrow: 'Planète Tellurique · 3.48 AU',
+    headline: 'Planète Next.js & Edge SSR',
+    summary:
+      'Architecture distribuée React Server Components, streaming temps réel multi-région et cache Edge sub-50ms.',
+    accentColor: '#38bdf8',
+    stats: [
+      { label: 'CONVERSION', value: '+340%' },
+      { label: 'LATENCE TTFB', value: '45 ms' },
+      { label: 'LIGHTHOUSE', value: '100/100' },
+    ],
+  },
+  asteroids: {
+    number: '02',
+    eyebrow: 'Ceinture Principale · 5.82 AU',
+    headline: 'Essaim Open Source & RFCs',
+    summary:
+      'Contributions directes aux écosystèmes majeurs : Next.js, React Core, Tailwind CSS, tRPC, shadcn/ui et Astral UV.',
+    accentColor: '#cbd5e1',
+    stats: [
+      { label: 'ÉTOILES CUMULÉES', value: '584k+' },
+      { label: 'PULL REQUESTS', value: '6 Majeures' },
+      { label: 'CORPS S/C-TYPE', value: '200 Astres' },
+    ],
+  },
+  station: {
+    number: '03',
+    eyebrow: 'Orbite Synchrone · 8.41 AU',
+    headline: 'Station DevOps Multi-Cloud',
+    summary:
+      'Orchestration Kubernetes haute disponibilité, clusters Docker Swarm, déploiements continus ArgoCD et télémétrie AWS/GCP.',
+    accentColor: '#34d399',
+    stats: [
+      { label: 'DISPONIBILITÉ SLA', value: '99.99%' },
+      { label: 'LATENCE P99', value: '18 ms' },
+      { label: 'RÉPLICAS ACTIFS', value: '64/64' },
+    ],
+  },
+};
+
+const ORDERED_WAYPOINTS: WaypointKey[] = ['reset', 'sun', 'nextjs', 'asteroids', 'station'];
 
 export const CockpitHudOverlay: React.FC<CockpitHudOverlayProps> = ({
   activeWaypoint,
@@ -31,214 +107,148 @@ export const CockpitHudOverlay: React.FC<CockpitHudOverlayProps> = ({
   distAU,
   warpProfile,
   freecam,
-  audioActive,
+  navigationMode = 'free',
+  viewProjection = 'planisphere',
+  hoveredOrbitTarget,
+  onToggleViewProjection,
   onNavigate,
   onInspectTarget,
   onCloseTargetPopup,
   onCardMouseEnter,
   onCardMouseLeave,
   onToggleFreecam,
-  onToggleAudio,
 }) => {
   const waypoints = [
-    {
-      key: 'sun' as WaypointKey,
-      code: '[00] SOL BASE',
-      label: 'Fondations C/Algo (0.0 AU)',
-      dotColor: 'bg-amber-400',
-      borderClass: 'border-amber-500/30 hover:border-amber-400',
-    },
-    {
-      key: 'nextjs' as WaypointKey,
-      code: '[01] PLANÈTE NEXT.JS',
-      label: 'SSR 15 & Glass Case (3.5 AU)',
-      dotColor: 'bg-[#00f2fe]',
-      borderClass: 'border-cyan-500/30 hover:border-cyan-400',
-    },
-    {
-      key: 'asteroids' as WaypointKey,
-      code: '[02] CEINTURE OPEN SOURCE',
-      label: 'PRs & Astéroïdes (5.8 AU)',
-      dotColor: 'bg-[#dcb8ff]',
-      borderClass: 'border-purple-500/30 hover:border-purple-400',
-    },
-    {
-      key: 'station' as WaypointKey,
-      code: '[03] STATION DEVOPS',
-      label: 'Cloud & Multi-Zone (8.4 AU)',
-      dotColor: 'bg-[#00f5d4]',
-      borderClass: 'border-emerald-500/30 hover:border-emerald-400',
-    },
+    { key: 'sun' as WaypointKey, index: '00', title: 'Sol Base', sub: '0.0 AU', dot: '#e5a93c' },
+    { key: 'nextjs' as WaypointKey, index: '01', title: 'Next.js Edge', sub: '3.5 AU', dot: '#38bdf8' },
+    { key: 'asteroids' as WaypointKey, index: '02', title: 'Open Source', sub: '5.8 AU', dot: '#cbd5e1' },
+    { key: 'station' as WaypointKey, index: '03', title: 'Station DevOps', sub: '8.4 AU', dot: '#34d399' },
   ];
 
-  const handleTimelineClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const ratio = (e.clientX - rect.left) / rect.width;
-    if (ratio < 0.25) onNavigate('sun');
-    else if (ratio < 0.55) onNavigate('nextjs');
-    else if (ratio < 0.8) onNavigate('asteroids');
-    else onNavigate('station');
+  const handleStepChapter = (delta: number) => {
+    const idx = ORDERED_WAYPOINTS.indexOf(activeWaypoint);
+    const nextIdx = (idx + delta + ORDERED_WAYPOINTS.length) % ORDERED_WAYPOINTS.length;
+    onNavigate(ORDERED_WAYPOINTS[nextIdx]);
   };
 
+  const activeChapter =
+    activeWaypoint !== 'reset' ? CHAPTER_METADATA[activeWaypoint] : null;
+  const activeTargetData =
+    activeWaypoint !== 'reset' ? CELESTIAL_TARGETS[activeWaypoint] : null;
+
   return (
-    <div className="hidden lg:flex absolute inset-x-0 top-16 bottom-16 pointer-events-none flex-col justify-between p-3 sm:p-4 z-30 select-none overflow-hidden">
-      {/* Tactical Grid Background */}
-      <div className="absolute inset-0 pointer-events-none opacity-20 bg-[linear-gradient(to_right,rgba(0,242,254,0.06)_1px,transparent_1px),linear-gradient(to_bottom,rgba(0,242,254,0.06)_1px,transparent_1px)] bg-[size:4rem_4rem]" />
-
-      {/* Central Crosshairs & Navigational Reticle */}
-      <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-        <div className="relative w-64 h-64 xl:w-72 xl:h-72 rounded-full border border-[#00f2fe]/10 flex items-center justify-center">
-          <div
-            className="absolute inset-0 rounded-full border-t border-[#00f2fe]/30 animate-spin"
-            style={{ animationDuration: '24s' }}
-          />
-          <div className="w-2 h-2 rounded-full bg-[#00f2fe]/40" />
-          <div className="absolute -top-3 text-[#00f2fe]/50 font-mono text-[10px] tracking-widest">
-            NAV.VECT 358°
+    <div className="hidden lg:flex absolute inset-x-0 top-20 bottom-12 pointer-events-none flex-col justify-between px-6 z-30 select-none overflow-hidden">
+      {/* HOVERED ORBITAL TRAJECTORY FLOATING BAR */}
+      {hoveredOrbitTarget && (
+        <div className="absolute top-3 left-1/2 -translate-x-1/2 pointer-events-auto obsidian-glass px-4 py-2.5 rounded-xl border border-sky-400/40 flex items-center gap-4 z-40 max-w-xl">
+          <div className="w-8 h-8 rounded-lg bg-slate-800/80 border border-slate-600/50 flex items-center justify-center text-sky-400 shrink-0">
+            <span className="material-symbols-outlined text-[17px]">alt_route</span>
           </div>
-          <div className="absolute -bottom-3 text-[#00f2fe]/50 font-mono text-[10px] tracking-widest">
-            NADIR LOCK
-          </div>
-          <div className="absolute left-2 w-3 h-[1px] bg-[#00f2fe]/40" />
-          <div className="absolute right-2 w-3 h-[1px] bg-[#00f2fe]/40" />
-        </div>
-      </div>
-
-      {/* TOP SECTION: Cockpit telemetry bar + Quick Waypoint selector */}
-      <div className="flex flex-col gap-2 w-full">
-        {/* Cockpit Status Bar */}
-        <div className="flex items-center justify-between bg-[#0b0e16]/85 backdrop-blur-md px-3.5 py-1.5 rounded-lg border border-[#3a494b]/30 shadow-lg pointer-events-auto">
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-[#00f2fe] animate-ping" />
-              <span className="font-['Space_Grotesk'] text-xs sm:text-sm font-bold text-[#e0fdff] uppercase tracking-wider">
-                Engineering Odyssey
+          <div className="flex flex-col min-w-0">
+            <div className="flex items-center gap-2 font-mono text-[10px]">
+              <span className="text-sky-400 uppercase font-semibold tracking-wider">
+                Éphéméride Kepler
               </span>
-              <span className="font-mono text-[9px] px-1.5 py-0.5 rounded bg-[#272a33] text-[#00f2fe] border border-[#00f2fe]/20">
-                V4.5 // INTERACTIVE SYSTEM
+              <span className="text-slate-500">·</span>
+              <span className="text-slate-300 tabular-nums">
+                e = {hoveredOrbitTarget.orbitalParams?.eccentricity ?? '0.00'}
               </span>
             </div>
-            <div className="hidden sm:block h-3.5 w-[1px] bg-[#3a494b]/50" />
-            <div className="hidden md:flex items-center gap-2">
-              <span className="font-mono text-[10px] text-[#849495] uppercase">
-                Engine Profile:
-              </span>
-              <span className="font-mono text-xs font-semibold text-[#00f2fe]">
-                {warpProfile}
-              </span>
+            <div className="font-display text-sm font-semibold text-slate-100 truncate">
+              {hoveredOrbitTarget.name}
+            </div>
+            <div className="font-mono text-[10px] text-slate-400 tabular-nums truncate">
+              Vitesse {hoveredOrbitTarget.orbitalParams?.velocityKmS ?? 20} km/s · Période{' '}
+              {hoveredOrbitTarget.orbitalParams?.periodDays ?? 365} j
             </div>
           </div>
-
-          {/* Coordinates */}
-          <div className="flex items-center gap-3 sm:gap-5 font-mono text-xs">
-            <div className="flex items-baseline gap-1">
-              <span className="text-[10px] text-[#849495]">X</span>
-              <span className="text-[#00f2fe] font-bold">
-                {coordX >= 0 ? '+' : ''}
-                {coordX.toFixed(3)}
-              </span>
-            </div>
-            <div className="flex items-baseline gap-1">
-              <span className="text-[10px] text-[#849495]">Y</span>
-              <span className="text-[#00f2fe] font-bold">
-                {coordY >= 0 ? '+' : ''}
-                {coordY.toFixed(3)}
-              </span>
-            </div>
-            <div className="hidden sm:flex items-baseline gap-1">
-              <span className="text-[10px] text-[#849495]">Z</span>
-              <span className="text-[#00f2fe] font-bold">
-                {coordZ >= 0 ? '+' : ''}
-                {coordZ.toFixed(3)}
-              </span>
-            </div>
-            <div className="flex items-baseline gap-1 bg-[#272a33] px-2 py-0.5 rounded border border-[#3a494b]/40">
-              <span className="text-[10px] text-[#849495]">CHRONO-AU</span>
-              <span className="text-[#dcb8ff] font-bold">
-                {distAU.toFixed(2)} AU
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Quick Waypoints Pills */}
-        <div className="flex items-center gap-2 justify-center pointer-events-auto flex-wrap">
-          {waypoints.map((wp) => {
-            const isSelected = activeWaypoint === wp.key;
-            return (
-              <button
-                key={wp.key}
-                type="button"
-                onClick={() => onNavigate(wp.key)}
-                className={`group flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#0b0e16]/85 backdrop-blur-md transition-all shadow-md cursor-pointer border ${
-                  isSelected
-                    ? 'ring-2 ring-[#00f2fe] bg-[#1d1f28] text-[#00f2fe]'
-                    : `text-[#b9cacb] hover:bg-[#272a33] hover:text-[#e1e2ee] ${wp.borderClass}`
-                }`}
-              >
-                <span className={`w-2 h-2 rounded-full ${wp.dotColor} ${isSelected ? 'animate-pulse' : ''}`} />
-                <span className="font-mono text-xs tracking-wider uppercase font-semibold">
-                  {wp.code}
-                </span>
-                <span className="font-body text-xs text-[#849495] hidden 2xl:inline">
-                  • {wp.label}
-                </span>
-              </button>
-            );
-          })}
-
-          {/* Reset button: Vue Globale */}
           <button
             type="button"
-            onClick={() => onNavigate('reset')}
-            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg transition-all shadow-md cursor-pointer border ${
-              activeWaypoint === 'reset'
-                ? 'bg-[#1d1f28] ring-2 ring-[#00f2fe] text-[#00f2fe] border-[#00f2fe]/40'
-                : 'bg-[#272a33] hover:bg-[#363943] text-[#e1e2ee] border-[#3a494b]/40'
-            }`}
+            onClick={() => onNavigate(hoveredOrbitTarget.id as WaypointKey)}
+            className="px-3 py-1.5 rounded-lg bg-sky-400 hover:bg-sky-300 text-slate-950 font-mono text-[10px] font-bold tracking-[0.12em] uppercase cursor-pointer transition-colors shrink-0"
           >
-            <span className="material-symbols-outlined text-[16px] text-[#00f2fe]">
-              filter_tilt_shift
-            </span>
-            <span className="font-mono text-xs uppercase tracking-wider font-semibold">
-              Vue Globale
-            </span>
+            Approcher
           </button>
         </div>
-      </div>
+      )}
 
-      {/* CENTER HUD: Floating Target Scanner Reticle Card (visible on hover of any celestial body or on navigation) */}
-      {showTargetPopup && targetInfo && targetInfo.id !== 'reset' && (
-        <div className="flex justify-center items-start w-full relative animate-in fade-in zoom-in-95 duration-200">
+      {/* TOP ROW: Editorial Overview & Hover Target Reticle */}
+      <div className="flex items-start justify-between w-full relative z-20">
+        {activeWaypoint === 'reset' ? (
+          <div className="flex flex-col max-w-md pointer-events-auto">
+            <div className="font-mono text-[10px] tracking-[0.2em] uppercase text-sky-400 mb-1.5">
+              {navigationMode === 'voyage'
+                ? 'Mode Voyage Cinématique · Défilez pour Explorer'
+                : viewProjection === 'planisphere'
+                ? 'Planisphère Écliptique Réel · Secteur 12-Vega'
+                : 'Observatoire Héliocentrique · Secteur 12-Vega'}
+            </div>
+            <h1 className="font-display text-3xl xl:text-4xl font-semibold tracking-tight text-gradient-metallic leading-[1.1] max-w-md">
+              Architecture & Ingénierie à l'Échelle Stellaire.
+            </h1>
+            <p className="font-body text-xs text-slate-400 mt-2.5 leading-relaxed max-w-sm">
+              Cartographie héliocentrique coplanaire conforme aux lois de Kepler. Cliquez sur un astre ou une trajectoire elliptique pour inspecter l'étude de cas.
+            </p>
+
+            <div className="flex flex-wrap items-center gap-2 mt-4">
+              <button
+                type="button"
+                onClick={() => onNavigate('sun')}
+                className="px-4 py-2 rounded-lg bg-slate-100 hover:bg-white text-slate-950 font-mono text-[10px] font-bold tracking-[0.14em] uppercase flex items-center gap-2 transition-colors cursor-pointer"
+              >
+                <span>Lancer la Visite</span>
+                <span className="material-symbols-outlined text-[15px]">east</span>
+              </button>
+
+              {onToggleViewProjection && (
+                <button
+                  type="button"
+                  onClick={onToggleViewProjection}
+                  className="obsidian-glass hover:border-sky-400/50 px-3 py-2 rounded-lg flex items-center gap-1.5 font-mono text-[10px] text-slate-200 uppercase tracking-wider transition-colors cursor-pointer"
+                  title="Basculer entre Planisphère 2D et Vue Observatoire (Touche P)"
+                >
+                  <span className="material-symbols-outlined text-[14px] text-sky-400">
+                    {viewProjection === 'planisphere' ? 'explore' : 'visibility'}
+                  </span>
+                  <span>
+                    {viewProjection === 'planisphere' ? 'Planisphère 2D' : 'Observatoire'}
+                  </span>
+                </button>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div />
+        )}
+
+        {/* Floating Hover Reticle Card (Directly clickable, no duplicate Inspect button) */}
+        {showTargetPopup && targetInfo && targetInfo.id !== 'reset' && (
           <div
             id="scanner-reticle"
             onMouseEnter={onCardMouseEnter}
             onMouseLeave={onCardMouseLeave}
-            className="transition-all duration-300 opacity-95 pointer-events-auto bg-[#0b0e16]/95 backdrop-blur-xl p-3 sm:p-4 rounded-xl shadow-2xl flex items-center gap-3 sm:gap-4 max-w-xl border border-[#00f2fe]/45"
+            className="pointer-events-auto obsidian-glass-interactive p-3 rounded-xl flex items-center gap-3 max-w-md ml-auto"
           >
             <div
               onClick={onInspectTarget}
-              className="flex items-center gap-3 sm:gap-4 flex-1 cursor-pointer min-w-0"
-              title="Cliquer pour ouvrir les détails"
+              className="flex items-center gap-3 flex-1 cursor-pointer min-w-0 group"
+              title="Cliquer pour ouvrir le dossier complet"
             >
-              <div className="relative w-10 h-10 rounded-lg bg-[#1d1f28] flex items-center justify-center border border-[#00f2fe]/30 flex-shrink-0">
-                <span className="material-symbols-outlined text-[#00f2fe] text-[22px] animate-pulse">
+              <div className="w-10 h-10 rounded-lg bg-slate-800/80 border border-slate-600/50 group-hover:border-sky-400/60 flex items-center justify-center text-sky-400 shrink-0 transition-colors">
+                <span className="material-symbols-outlined text-[20px]">
                   {targetInfo.icon || 'radar'}
                 </span>
               </div>
 
               <div className="flex flex-col min-w-0 pr-2 flex-1">
-                <div className="flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#00f2fe] animate-ping" />
-                  <span className="font-mono text-[10px] text-[#00f2fe] uppercase tracking-wider truncate font-semibold">
-                    {targetInfo.category || 'CAPTEUR OPTIQUE ACTIF // VECTEUR VERROUILLÉ'}
-                  </span>
-                </div>
-                <div className="font-['Space_Grotesk'] text-sm sm:text-base font-bold text-[#e1e2ee] truncate">
+                <span className="font-mono text-[9px] tracking-[0.16em] text-sky-400 uppercase truncate">
+                  {targetInfo.category}
+                </span>
+                <div className="font-display text-sm font-semibold text-slate-100 group-hover:text-sky-300 transition-colors truncate mt-0.5">
                   {targetInfo.name}
                 </div>
-                <div className="font-mono text-[10px] text-[#849495] truncate">
-                  {targetInfo.meta || `${targetInfo.subtitle} • ${targetInfo.au.toFixed(2)} AU`}
+                <div className="font-mono text-[10px] text-slate-400 truncate">
+                  {targetInfo.subtitle}
                 </div>
               </div>
             </div>
@@ -249,135 +259,200 @@ export const CockpitHudOverlay: React.FC<CockpitHudOverlayProps> = ({
                 e.stopPropagation();
                 onCloseTargetPopup();
               }}
-              className="w-7 h-7 rounded-lg hover:bg-[#272a33] text-[#849495] hover:text-[#fff] flex items-center justify-center transition-colors cursor-pointer flex-shrink-0 ml-1"
-              title="Fermer la vue télémétrique"
-              aria-label="Fermer la vue"
+              className="w-7 h-7 rounded-md hover:bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center transition-colors cursor-pointer shrink-0"
+              title="Fermer"
+              aria-label="Fermer"
             >
-              <span className="material-symbols-outlined text-[18px]">close</span>
+              <span className="material-symbols-outlined text-[16px]">close</span>
             </button>
+          </div>
+        )}
+      </div>
+
+      {/* MIDDLE LEFT: CHAPTER INSPECTOR CARD (When focused on a celestial body) */}
+      {activeChapter && activeTargetData && (
+        <div
+          id="hud-interactive-ui"
+          className="pointer-events-auto my-auto max-w-md w-full obsidian-glass rounded-2xl p-6 border border-slate-600/30 flex flex-col gap-4"
+        >
+          <div className="flex items-center justify-between border-b border-slate-700/60 pb-3">
+            <div className="flex items-center gap-2">
+              <span
+                className="font-display text-xl font-semibold tracking-tight tabular-nums"
+                style={{ color: activeChapter.accentColor }}
+              >
+                {activeChapter.number}
+              </span>
+              <span className="text-slate-600 font-mono text-xs">/ 03</span>
+              <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-slate-400 ml-1">
+                {activeChapter.eyebrow}
+              </span>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => onNavigate('reset')}
+              className="px-2.5 py-1 rounded-md bg-slate-800/70 hover:bg-slate-800 text-slate-300 hover:text-white font-mono text-[10px] tracking-[0.12em] uppercase flex items-center gap-1 transition-colors cursor-pointer"
+            >
+              <span>Planisphère</span>
+              <span className="material-symbols-outlined text-[13px]">close_fullscreen</span>
+            </button>
+          </div>
+
+          <div>
+            <h2 className="font-display text-2xl font-semibold tracking-tight text-slate-100 leading-tight">
+              {activeChapter.headline}
+            </h2>
+            <p className="font-body text-xs xl:text-sm text-slate-300 mt-2 leading-relaxed">
+              {activeChapter.summary}
+            </p>
+          </div>
+
+          <div className="grid grid-cols-3 gap-2.5 pt-1">
+            {activeChapter.stats.map((st) => (
+              <div
+                key={st.label}
+                className="bg-[#04070e] border border-slate-700/50 rounded-xl p-3 flex flex-col"
+              >
+                <span className="font-mono text-[9px] tracking-[0.14em] text-slate-400 uppercase">
+                  {st.label}
+                </span>
+                <span className="font-display text-lg font-semibold text-slate-100 tabular-nums mt-1">
+                  {st.value}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          {activeTargetData.techStack && (
+            <div className="font-mono text-[11px] text-slate-400 leading-relaxed border-t border-slate-800 pt-3">
+              {activeTargetData.techStack.join(' · ')}
+            </div>
+          )}
+
+          <div className="flex items-center justify-between gap-3 pt-2 border-t border-slate-700/60">
+            <button
+              type="button"
+              onClick={onInspectTarget}
+              className="flex-1 py-2.5 px-4 rounded-lg bg-sky-400 hover:bg-sky-300 text-slate-950 font-mono text-[11px] font-bold tracking-[0.14em] uppercase flex items-center justify-center gap-2 transition-colors cursor-pointer"
+            >
+              <span>Ouvrir l'Étude de Cas</span>
+              <span className="material-symbols-outlined text-[16px]">arrow_outward</span>
+            </button>
+
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => handleStepChapter(-1)}
+                className="w-10 h-10 rounded-lg bg-slate-800/80 hover:bg-slate-700 border border-slate-600/40 text-slate-200 flex items-center justify-center transition-colors cursor-pointer"
+                title="Chapitre précédent"
+              >
+                <span className="material-symbols-outlined text-[18px]">west</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleStepChapter(1)}
+                className="w-10 h-10 rounded-lg bg-slate-800/80 hover:bg-slate-700 border border-slate-600/40 text-slate-200 flex items-center justify-center transition-colors cursor-pointer"
+                title="Chapitre suivant"
+              >
+                <span className="material-symbols-outlined text-[18px]">east</span>
+              </button>
+            </div>
           </div>
         </div>
       )}
 
-      {/* BOTTOM SECTION: Chronological Timeline, Flight Guides, and Thrusters */}
-      <div className="grid grid-cols-12 gap-2.5 xl:gap-3 items-end w-full">
-        {/* Left: Interactive Chronological Odyssey Vector */}
-        <div className="col-span-5 bg-[#0b0e16]/85 backdrop-blur-md p-3 rounded-lg shadow-lg pointer-events-auto flex flex-col gap-1.5 border border-[#3a494b]/30">
-          <div className="flex items-center justify-between text-[#849495] font-mono text-[10px]">
-            <span className="uppercase flex items-center gap-1">
-              <span className="material-symbols-outlined text-[14px] text-[#dcb8ff]">
-                timeline
-              </span>{' '}
-              Vecteur Chronologique d'Odyssée
-            </span>
-            <span className="text-[#00f2fe] font-mono">
-              0.0 AU (Origines) → 8.41 AU (Cloud)
-            </span>
-          </div>
-
-          {/* Interactive Colored Bar */}
-          <div
-            onClick={handleTimelineClick}
-            className="relative w-full h-2.5 rounded-full bg-[#32343e] overflow-hidden flex cursor-pointer"
-            title="Cliquez pour naviguer le long de la chronologie spatiale"
-          >
-            <div
-              className="h-full bg-amber-400 hover:opacity-80 transition-all"
-              style={{ width: '22%' }}
-              title="0.0 AU : Sol Base (Origines C/Algo)"
-            />
-            <div
-              className="h-full bg-[#00f2fe] hover:opacity-80 transition-all"
-              style={{ width: '33%' }}
-              title="3.48 AU : Planète Next.js (Architecture SSR)"
-            />
-            <div
-              className="h-full bg-[#dcb8ff] hover:opacity-80 transition-all"
-              style={{ width: '25%' }}
-              title="5.82 AU : Ceinture Open Source (PRs & RFCs)"
-            />
-            <div
-              className="h-full bg-[#00f5d4] hover:opacity-80 transition-all"
-              style={{ width: '20%' }}
-              title="8.41 AU : Station DevOps (Multi-Cloud & K8s)"
-            />
-          </div>
-
-          <p className="font-body text-[11px] text-[#849495] italic leading-tight">
-            "Plus le vaisseau s'éloigne de Sol, plus les technologies cartographiées sont contemporaines, distribuées et massives."
-          </p>
-        </div>
-
-        {/* Center: Flight Instructions */}
-        <div className="col-span-4 bg-[#0b0e16]/85 backdrop-blur-md px-4 py-2.5 rounded-lg shadow-lg pointer-events-auto flex items-center justify-between border border-[#3a494b]/30">
-          <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded bg-[#1d1f28] flex items-center justify-center border border-[#00f2fe]/20">
-              <span className="material-symbols-outlined text-[#00f2fe] text-[18px]">
-                navigation
-              </span>
-            </div>
-            <div className="flex flex-col min-w-0">
-              <span className="font-mono text-xs text-[#00f2fe] uppercase font-semibold truncate">
-                Pilotage Spatial Actif
-              </span>
-              <span className="font-body text-[11px] text-[#849495] truncate">
-                Survol d'un astre • Clic 3D pour approche
-              </span>
-            </div>
-          </div>
-          <div className="flex items-center gap-1 font-mono text-[10px] text-[#849495] shrink-0">
-            <kbd className="px-1.5 py-0.5 rounded bg-[#1d1f28] border border-[#3a494b]/50">
-              SURVOL
-            </kbd>
-            <kbd className="px-1.5 py-0.5 rounded bg-[#1d1f28] border border-[#3a494b]/50">
-              CLIC
-            </kbd>
-          </div>
-        </div>
-
-        {/* Right: Propulsion and Toggles */}
-        <div className="col-span-3 bg-[#0b0e16]/85 backdrop-blur-md p-3 rounded-lg shadow-lg pointer-events-auto flex items-center justify-between border border-[#3a494b]/30">
+      {/* BOTTOM BAR: Coordinates, Orbital Dock, Heliocentric Radius */}
+      <div className="flex items-end justify-between gap-4 w-full relative z-20 mt-auto">
+        <div className="obsidian-glass px-4 py-2 rounded-xl pointer-events-auto flex items-center gap-4 font-mono text-[10px]">
           <div className="flex flex-col">
-            <span className="font-mono text-[10px] text-[#849495] uppercase">
-              Thrusters
+            <span className="text-[9px] tracking-[0.16em] text-slate-400 uppercase">
+              Éphéméride Active
             </span>
-            <span className="font-mono text-xs text-[#00f2fe] font-bold flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#00f2fe] animate-pulse" />
-              IONIC DRIVE 98%
+            <span className="text-sky-400 font-semibold tracking-wider mt-0.5">
+              {warpProfile}
+            </span>
+          </div>
+          <div className="h-6 w-[1px] bg-slate-700/60" />
+          <div className="flex items-center gap-3 text-slate-300 tabular-nums">
+            <span>
+              <strong className="text-slate-500 font-normal">X</strong> {coordX >= 0 ? '+' : ''}
+              {coordX.toFixed(1)}
+            </span>
+            <span>
+              <strong className="text-slate-500 font-normal">Y</strong> {coordY >= 0 ? '+' : ''}
+              {coordY.toFixed(1)}
+            </span>
+            <span>
+              <strong className="text-slate-500 font-normal">Z</strong> {coordZ >= 0 ? '+' : ''}
+              {coordZ.toFixed(1)}
+            </span>
+          </div>
+        </div>
+
+        {/* Center Orbital Chapter Dock */}
+        <div className="obsidian-glass p-1.5 rounded-xl pointer-events-auto flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => onNavigate('reset')}
+            className={`px-3 py-1.5 rounded-lg font-mono text-[10px] tracking-[0.14em] uppercase transition-colors cursor-pointer flex items-center gap-2 whitespace-nowrap ${
+              activeWaypoint === 'reset'
+                ? 'bg-slate-800 text-slate-100 font-semibold border border-slate-600/60'
+                : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/40'
+            }`}
+          >
+            <span className="material-symbols-outlined text-[15px] text-sky-400">public</span>
+            <span>Planisphère</span>
+          </button>
+
+          <div className="h-5 w-[1px] bg-slate-700/60 mx-0.5" />
+
+          {waypoints.map((wp) => {
+            const isSelected = activeWaypoint === wp.key;
+            return (
+              <button
+                key={wp.key}
+                type="button"
+                onClick={() => onNavigate(wp.key)}
+                className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer flex items-center gap-2 whitespace-nowrap ${
+                  isSelected
+                    ? 'bg-slate-800 text-slate-100 border border-slate-500/60 font-semibold'
+                    : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/40 border border-transparent'
+                }`}
+              >
+                <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: wp.dot }} />
+                <span className="font-mono text-[9px] text-slate-500">{wp.index}</span>
+                <span className="font-display text-xs font-medium">{wp.title}</span>
+                <span className="font-mono text-[9px] text-slate-500 hidden 2xl:inline tabular-nums">
+                  {wp.sub}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="obsidian-glass px-4 py-2 rounded-xl pointer-events-auto flex items-center gap-3">
+          <div className="flex flex-col text-right font-mono">
+            <span className="text-[9px] tracking-[0.16em] text-slate-400 uppercase">
+              Rayon Héliocentrique
+            </span>
+            <span className="text-xs font-semibold text-amber-300 tabular-nums">
+              {distAU.toFixed(2)} AU
             </span>
           </div>
 
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={onToggleAudio}
-              className={`p-1.5 rounded transition-colors cursor-pointer border ${
-                audioActive
-                  ? 'bg-[#1d1f28] border-[#00f2fe]/50 text-[#00f2fe]'
-                  : 'bg-[#272a33] border-[#3a494b]/40 text-[#849495] hover:text-[#e1e2ee]'
-              }`}
-              title="Toggle Synthesizer Audio Hum"
-            >
-              <span className="material-symbols-outlined text-[18px]">
-                {audioActive ? 'volume_up' : 'volume_off'}
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={onToggleFreecam}
-              className={`p-1.5 rounded transition-colors cursor-pointer border ${
-                freecam
-                  ? 'bg-[#1d1f28] border-[#00f2fe] text-[#00f2fe]'
-                  : 'bg-[#272a33] border-[#3a494b]/40 text-[#849495] hover:text-[#e1e2ee]'
-              }`}
-              title="Toggle Free-camera mode"
-            >
-              <span className="material-symbols-outlined text-[18px]">
-                videocam
-              </span>
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={onToggleFreecam}
+            className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors cursor-pointer border ${
+              freecam
+                ? 'bg-sky-500/20 border-sky-400/50 text-sky-300'
+                : 'bg-slate-800/50 border-slate-700/60 text-slate-400 hover:text-slate-200'
+            }`}
+            title="Verrouiller / Libérer l'angle caméra"
+          >
+            <span className="material-symbols-outlined text-[16px]">videocam</span>
+          </button>
         </div>
       </div>
     </div>

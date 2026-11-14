@@ -1,5 +1,5 @@
 import React from 'react';
-import { OfficerUser } from '../types';
+import { OfficerUser, ScanMode } from '../types';
 
 interface CockpitHeaderProps {
   coordX: number;
@@ -10,7 +10,15 @@ interface CockpitHeaderProps {
   isAuthenticated: boolean;
   officerUser: OfficerUser | null;
   sidebarOpen: boolean;
+  scannerOpen?: boolean;
+  navigationMode?: 'free' | 'voyage';
+  viewProjection?: 'planisphere' | 'observatory';
+  scanMode?: ScanMode;
+  onToggleNavigationMode?: () => void;
+  onToggleViewProjection?: () => void;
+  onChangeScanMode?: (mode: ScanMode) => void;
   onToggleSidebar: () => void;
+  onToggleScanner?: () => void;
   onToggleAudio: () => void;
   onOpenNewProject: () => void;
   onOpenProfile: () => void;
@@ -26,141 +34,222 @@ export const CockpitHeader: React.FC<CockpitHeaderProps> = ({
   isAuthenticated,
   officerUser,
   sidebarOpen,
+  scannerOpen = false,
+  navigationMode = 'free',
+  viewProjection = 'planisphere',
+  scanMode = 'optical',
+  onToggleNavigationMode,
+  onToggleViewProjection,
+  onChangeScanMode,
   onToggleSidebar,
+  onToggleScanner,
   onToggleAudio,
   onOpenNewProject,
   onOpenProfile,
   onOpenAuth,
 }) => {
-  // Format coordinate telemetry
-  const formattedRA = `RA ${Math.abs(Math.floor(coordX / 8)) % 24}h ${Math.abs(Math.floor(coordY / 2)) % 60}m`;
-  const formattedDEC = `DEC ${coordY >= 0 ? '+' : '-'}${Math.abs(Math.floor(coordY)) % 90}°${Math.abs(Math.floor(coordX)) % 60}′`;
+  const formattedRA = `${Math.abs(Math.floor(coordX / 8)) % 24}h ${Math.abs(Math.floor(coordY / 2)) % 60}m`;
+  const formattedDEC = `${coordY >= 0 ? '+' : '-'}${Math.abs(Math.floor(coordY)) % 90}°`;
+
+  const bands: { key: ScanMode; tag: string; color: string }[] = [
+    { key: 'optical', tag: 'VIS', color: '#38bdf8' },
+    { key: 'infrared', tag: 'IR', color: '#f97316' },
+    { key: 'radio', tag: 'RF', color: '#60a5fa' },
+    { key: 'gravitational', tag: 'GW', color: '#a78bfa' },
+  ];
 
   return (
-    <header className="hidden lg:flex fixed top-0 left-0 right-0 h-16 bg-[#0b0e16]/85 backdrop-blur-xl z-40 px-4 xl:px-6 items-center justify-between border-b border-[#3a494b]/30 shadow-[0_1px_12px_rgba(0,0,0,0.4)] select-none gap-4">
-      {/* Left controls & telemetry readouts */}
-      <div className="flex items-center gap-3 xl:gap-5 min-w-0">
-        {/* Sidebar Toggle Button (Flight Deck Drawer) */}
+    <header className="hidden lg:flex fixed top-4 left-6 right-6 h-13 obsidian-glass rounded-xl z-40 px-4 items-center justify-between select-none gap-4">
+      {/* Left: Observatory Brand & Index Trigger */}
+      <div className="flex items-center gap-3.5 min-w-0">
         <button
           type="button"
           onClick={onToggleSidebar}
-          className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border font-mono text-xs uppercase font-bold transition-all cursor-pointer shadow-[0_0_12px_rgba(0,242,254,0.15)] shrink-0 ${
+          className={`flex items-center gap-2 px-3 py-1.5 rounded-lg font-mono text-[11px] tracking-[0.14em] uppercase transition-colors cursor-pointer border whitespace-nowrap shrink-0 ${
             sidebarOpen
-              ? 'bg-[#00f2fe] text-[#002022] border-[#00f2fe]'
-              : 'bg-[#191b24] hover:bg-[#272a33] text-[#00f2fe] border-cyan-500/40 hover:border-cyan-400'
+              ? 'bg-sky-400 text-[#04111d] border-sky-400 font-semibold'
+              : 'bg-slate-800/60 hover:bg-slate-800 text-slate-200 border-slate-600/35'
           }`}
-          title={sidebarOpen ? "Réduire la console latérale (Flight Deck)" : "Déployer la console latérale (Flight Deck)"}
+          title="Ouvrir l'index des chapitres et commandes"
         >
-          <span className="material-symbols-outlined text-[18px]">
-            {sidebarOpen ? 'menu_open' : 'menu'}
+          <span className="material-symbols-outlined text-[16px]">
+            {sidebarOpen ? 'menu_open' : 'drag_handle'}
           </span>
-          <span className="hidden sm:inline font-mono">Flight Deck</span>
+          <span>Index</span>
         </button>
 
-        <div className="flex flex-col shrink-0">
-          <span className="font-mono text-[10px] text-[#849495] uppercase tracking-wider">
-            Vector Coords
-          </span>
-          <span className="font-mono text-xs xl:text-sm font-bold text-[#00f2fe] tracking-wide">
-            {formattedRA} / {formattedDEC}
-          </span>
-        </div>
+        <div className="h-4 w-[1px] bg-slate-700/60" />
 
-        <div className="flex flex-col border-l border-[#3a494b]/30 pl-3 xl:pl-4 shrink-0">
-          <span className="font-mono text-[10px] text-[#849495] uppercase tracking-wider">
-            Velocity
+        <div className="flex flex-col min-w-0">
+          <span className="font-display text-xs font-semibold tracking-[0.18em] uppercase text-slate-100 whitespace-nowrap">
+            Engineering Odyssey
           </span>
-          <span className="font-mono text-xs xl:text-sm font-semibold text-[#e1e2ee]">
-            {velocityC.toFixed(3)}{' '}
-            <span className="text-[10px] xl:text-[11px] text-[#849495] font-normal">c</span>
-          </span>
-        </div>
-
-        <div className="flex flex-col border-l border-[#3a494b]/30 pl-3 xl:pl-4 shrink-0">
-          <span className="font-mono text-[10px] text-[#849495] uppercase tracking-wider">
-            Dist. Sol
-          </span>
-          <span className="font-mono text-xs xl:text-sm font-semibold text-[#e1e2ee]">
-            {distAU.toFixed(3)}{' '}
-            <span className="text-[10px] xl:text-[11px] text-[#849495] font-normal">AU</span>
-          </span>
-        </div>
-
-        <div className="hidden 2xl:flex items-center gap-2 bg-[#1d1f28] px-3 py-1 rounded border border-[#3a494b]/40 shrink-0">
-          <span className="w-1.5 h-1.5 rounded-full bg-[#00dce6] animate-ping" />
-          <span className="font-mono text-[11px] text-[#e0fdff] uppercase tracking-wider">
-            Sector 12-Vega // NOMINAL
+          <span className="font-mono text-[10px] tracking-[0.12em] text-slate-400 uppercase tabular-nums whitespace-nowrap">
+            RA {formattedRA} · DEC {formattedDEC} · {distAU.toFixed(2)} AU
           </span>
         </div>
       </div>
 
-      {/* Right controls */}
-      <div className="flex items-center gap-2.5 xl:gap-3 shrink-0">
-        {/* Authentication Status Badge */}
-        {isAuthenticated && officerUser ? (
-          <div
-            onClick={onOpenAuth}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-mono text-[11px] cursor-pointer hover:bg-emerald-500/25 transition-all shrink-0"
-            title="Officier Authentifié - Cliquez pour gérer la session"
-          >
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="uppercase font-semibold">{officerUser.callsign} // CL-{officerUser.clearanceLevel}</span>
+      {/* Center: Projection Switcher & Navigation Mode */}
+      <div className="flex items-center gap-2 shrink-0">
+        {onToggleViewProjection && (
+          <div className="flex items-center bg-[#04070e] p-1 rounded-lg border border-slate-700/50">
+            <button
+              type="button"
+              onClick={() => viewProjection !== 'planisphere' && onToggleViewProjection()}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md font-mono text-[10px] tracking-[0.1em] uppercase transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                viewProjection === 'planisphere'
+                  ? 'bg-slate-800 text-sky-300 font-semibold border border-slate-600/50'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+              title="Vue Planisphère Écliptique 2D (Raccourci P)"
+            >
+              <span className="material-symbols-outlined text-[14px]">explore</span>
+              <span>Planisphère 2D</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => viewProjection !== 'observatory' && onToggleViewProjection()}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md font-mono text-[10px] tracking-[0.1em] uppercase transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                viewProjection === 'observatory'
+                  ? 'bg-slate-800 text-sky-300 font-semibold border border-slate-600/50'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+              title="Vue Observatoire Oblique (Raccourci P)"
+            >
+              <span className="material-symbols-outlined text-[14px]">visibility</span>
+              <span>Observatoire</span>
+            </button>
           </div>
-        ) : (
+        )}
+
+        {onToggleNavigationMode && (
+          <div className="flex items-center bg-[#04070e] p-1 rounded-lg border border-slate-700/50">
+            <button
+              type="button"
+              onClick={() => navigationMode !== 'free' && onToggleNavigationMode()}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md font-mono text-[10px] tracking-[0.1em] uppercase transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                navigationMode === 'free'
+                  ? 'bg-slate-800 text-slate-100 font-semibold border border-slate-600/50'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[14px]">3d_rotation</span>
+              <span>Exploration</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => navigationMode !== 'voyage' && onToggleNavigationMode()}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md font-mono text-[10px] tracking-[0.1em] uppercase transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                navigationMode === 'voyage'
+                  ? 'bg-sky-500/20 text-sky-300 font-semibold border border-sky-400/40'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+              title="Mode Voyage Cinématique : molette pour naviguer de chapitre en chapitre"
+            >
+              <span className="material-symbols-outlined text-[14px]">movie_filter</span>
+              <span>Voyage</span>
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Right: Spectral Band Switcher, Scanner, Deploy, Officer Access, Audio & Profile */}
+      <div className="flex items-center gap-2 shrink-0">
+        {onChangeScanMode && (
+          <div className="hidden xl:flex items-center gap-1 bg-[#04070e] p-1 rounded-lg border border-slate-700/50">
+            {bands.map((b) => {
+              const active = scanMode === b.key;
+              return (
+                <button
+                  key={b.key}
+                  type="button"
+                  onClick={() => onChangeScanMode(b.key)}
+                  className={`flex items-center gap-1.5 px-2 py-1 rounded-md font-mono text-[10px] tracking-wider transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                    active
+                      ? 'bg-slate-800 text-slate-100 font-semibold border border-slate-600/50'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                  title={`Bande spectrale : ${b.tag}`}
+                >
+                  <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: b.color }} />
+                  <span>{b.tag}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {onToggleScanner && (
           <button
             type="button"
-            onClick={onOpenAuth}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-[#272a33] hover:bg-[#363943] text-amber-400 border border-amber-500/30 font-mono text-[11px] cursor-pointer transition-all shrink-0"
-            title="Connexion Requise pour l'enregistrement orbital"
+            onClick={onToggleScanner}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg transition-colors font-mono text-[10px] tracking-[0.12em] uppercase cursor-pointer border whitespace-nowrap shrink-0 ${
+              scannerOpen
+                ? 'bg-sky-500/20 border-sky-400/50 text-sky-300'
+                : 'bg-slate-800/50 hover:bg-slate-800 border-slate-700/60 text-slate-300'
+            }`}
+            title="Ouvrir le scanner multispectral"
           >
-            <span className="material-symbols-outlined text-[14px]">lock</span>
-            <span className="uppercase font-semibold">Authentification</span>
+            <span className="material-symbols-outlined text-[15px] text-sky-400">sensors</span>
+            <span className="hidden 2xl:inline">Spectre</span>
           </button>
         )}
 
-        {/* Nouveau Projet Button */}
         <button
           type="button"
           onClick={onOpenNewProject}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-[#00f2fe]/15 hover:bg-[#00f2fe] text-[#00f2fe] hover:text-[#002022] border border-[#00f2fe]/40 transition-all font-mono text-xs uppercase font-bold shadow-[0_0_10px_rgba(0,242,254,0.2)] hover:shadow-[0_0_16px_rgba(0,242,254,0.5)] cursor-pointer shrink-0"
-          title="Ajouter une étude de cas ou un projet dans le registre orbital"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-white text-slate-950 transition-colors font-mono text-[10px] tracking-[0.12em] uppercase font-semibold cursor-pointer whitespace-nowrap shrink-0"
+          title="Ajouter un projet dans le registre orbital"
         >
-          <span className="material-symbols-outlined text-[16px]">add_circle</span>
-          <span className="hidden xl:inline">Nouveau Projet</span>
+          <span className="material-symbols-outlined text-[15px]">add</span>
+          <span className="hidden xl:inline">Déployer</span>
         </button>
 
-        {/* Ambient Space Synthesizer Toggle */}
+        <button
+          type="button"
+          onClick={onOpenAuth}
+          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg font-mono text-[10px] tracking-wider uppercase cursor-pointer border transition-colors whitespace-nowrap shrink-0 ${
+            isAuthenticated && officerUser
+              ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/35 hover:bg-emerald-500/20'
+              : 'bg-slate-800/50 text-amber-300 border-amber-500/30 hover:bg-slate-800'
+          }`}
+          title="Accréditation Officier"
+        >
+          <span className="material-symbols-outlined text-[14px]">
+            {isAuthenticated ? 'verified_user' : 'lock'}
+          </span>
+          <span className="hidden 2xl:inline">
+            {isAuthenticated && officerUser ? officerUser.callsign : 'Accès'}
+          </span>
+        </button>
+
         <button
           type="button"
           onClick={onToggleAudio}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded transition-all font-mono text-xs uppercase cursor-pointer border shrink-0 ${
+          className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors cursor-pointer border shrink-0 ${
             audioActive
-              ? 'bg-[#1d1f28] border-[#00f2fe] text-[#00f2fe] shadow-[0_0_10px_rgba(0,242,254,0.25)]'
-              : 'bg-[#272a33] border-[#3a494b]/40 text-[#849495] hover:text-[#e1e2ee] hover:bg-[#363943]'
+              ? 'bg-sky-500/20 border-sky-400/50 text-sky-300'
+              : 'bg-slate-800/50 border-slate-700/60 text-slate-400 hover:text-slate-200'
           }`}
-          title="Activer/Désactiver l'ambiance sonore du cockpit spatial"
+          title={`Synthétiseur Spatial (${velocityC.toFixed(2)}c)`}
         >
           <span className="material-symbols-outlined text-[16px]">
             {audioActive ? 'graphic_eq' : 'volume_off'}
           </span>
-          <span className="hidden 2xl:inline">
-            Synthesizer: {audioActive ? 'Active' : 'Muted'}
-          </span>
         </button>
 
-        {/* Profile Avatar / Pilot Bio */}
         <button
           type="button"
           onClick={onOpenProfile}
-          className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#00dce6] to-[#6ff6ff] p-0.5 flex items-center justify-center cursor-pointer hover:ring-2 hover:ring-[#00f2fe] transition-all shadow-[0_0_8px_rgba(0,242,254,0.4)] shrink-0"
-          title="Profil de l'Ingénieur & Origines"
+          className="w-8 h-8 rounded-lg bg-slate-800/80 hover:bg-slate-700 border border-slate-600/50 flex items-center justify-center text-slate-200 hover:text-amber-300 cursor-pointer transition-colors shrink-0"
+          title="Dossier de l'Architecte & Origines"
         >
-          <div className="w-full h-full rounded-full bg-[#10131c] flex items-center justify-center text-[#00f2fe] hover:text-[#fff]">
-            <span className="material-symbols-outlined text-[18px]">person</span>
-          </div>
+          <span className="material-symbols-outlined text-[16px]">person</span>
         </button>
       </div>
     </header>
   );
 };
-
